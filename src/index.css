@@ -283,24 +283,27 @@ img { max-width: 100%; display: block; }
 }
 
 .sidebar-logo {
-  padding: var(--sp-6) var(--sp-5);
+  padding: 0 var(--sp-5);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  gap: var(--sp-3);
+  gap: var(--sp-2);
+  height: 80px;
 }
 
 .sidebar-logo .logo-icon {
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
-  background: none;
-  width: auto;
-  height: auto;
+  justify-content: center;
 }
 
 .sidebar-logo h2 {
-  margin-left: var(--sp-2);
+  margin: 0;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .sidebar-nav {

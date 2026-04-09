@@ -70,9 +70,9 @@ export default function Layout({ children }) {
         <button className="btn-icon" onClick={() => setMobileOpen(!mobileOpen)}>
           {mobileOpen ? <X size={22} /> : <Menu size={22} />}
         </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', height: '28px' }}>
           <LyriaIcon size={20} />
-          <span style={{ fontWeight: 600, fontSize: 'var(--fs-md)' }}>Lyria</span>
+          <span style={{ fontWeight: 600, fontSize: 'var(--fs-md)', lineHeight: '1', display: 'flex', alignItems: 'center' }}>Lyria</span>
         </div>
         <div style={{ width: 22 }} />
       </div>
@@ -86,20 +86,33 @@ export default function Layout({ children }) {
             alignItems: 'center', 
             flexDirection: collapsed ? 'column' : 'row',
             justifyContent: collapsed ? 'center' : 'space-between',
-            gap: collapsed ? 'var(--sp-3)' : 0
+            gap: collapsed ? 'var(--sp-3)' : 'var(--sp-2)',
+            height: collapsed ? 'auto' : '80px',
+            padding: collapsed ? 'var(--sp-6) 0' : '0 var(--sp-5)'
           }}
         >
-          <div className="logo-icon" style={{ background: 'transparent', display: 'flex', alignItems: 'center' }}>
+          <div className="logo-icon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <LyriaIcon size={collapsed ? 26 : 28} />
           </div>
           
           {!collapsed ? (
             <>
-              <h2 style={{ fontSize: 'var(--fs-lg)', marginLeft: 'var(--sp-1)', flex: 1 }}>Lyria</h2>
+              <h2 style={{ 
+                fontSize: 'var(--fs-lg)', 
+                flex: 1, 
+                lineHeight: '1', 
+                margin: 0,
+                display: 'flex',
+                alignItems: 'center',
+                letterSpacing: '-0.01em'
+              }}>
+                Lyria
+              </h2>
               <button 
                 className="btn btn-ghost btn-sm" 
                 onClick={() => setCollapsed(true)} 
                 title="Ocultar categorias"
+                style={{ padding: '4px' }}
               >
                 <ChevronLeft size={16} />
               </button>
