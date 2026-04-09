@@ -5,15 +5,15 @@ import { db, COLLECTIONS } from '../data/db';
 const AppContext = createContext(null);
 
 const initialState = {
-  tasks: [],
-  finance: [],
-  learnings: [],
-  experiments: [],
-  weeklyReviews: [],
-  dailyCheckIns: [],
-  timeAllocations: [],
-  workoutRoutines: [],
-  workoutLogs: [],
+  tasks: db.getAll(COLLECTIONS.TASKS),
+  finance: db.getAll(COLLECTIONS.FINANCE),
+  learnings: db.getAll(COLLECTIONS.LEARNINGS),
+  experiments: db.getAll(COLLECTIONS.EXPERIMENTS),
+  weeklyReviews: db.getAll(COLLECTIONS.WEEKLY_REVIEWS),
+  dailyCheckIns: db.getAll(COLLECTIONS.DAILY_CHECKINS),
+  timeAllocations: db.getAll(COLLECTIONS.TIME_ALLOCATIONS),
+  workoutRoutines: db.getAll(COLLECTIONS.WORKOUT_ROUTINES),
+  workoutLogs: db.getAll(COLLECTIONS.WORKOUT_LOGS),
   lastUpdate: Date.now(),
 };
 
@@ -83,6 +83,12 @@ export function AppProvider({ children }) {
     return result;
   }, [refreshCollection]);
 
+  const updateBatch = useCallback((stateKey, updatesArray) => {
+    const result = db.updateBatch(collectionMap[stateKey], updatesArray);
+    refreshCollection(stateKey);
+    return result;
+  }, [refreshCollection]);
+
   const deleteItem = useCallback((stateKey, id) => {
     db.remove(collectionMap[stateKey], id);
     refreshCollection(stateKey);
@@ -94,6 +100,7 @@ export function AppProvider({ children }) {
     refreshCollection,
     createItem,
     updateItem,
+    updateBatch,
     deleteItem,
   };
 

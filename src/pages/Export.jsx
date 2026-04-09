@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '../contexts/AppContext';
-import { Download, Upload, FileText, FileJson, Calendar, CheckSquare, DollarSign, Lightbulb, FlaskConical, ClipboardList, BarChart3, Dumbbell, Trash2 } from 'lucide-react';
+import { Download, Upload, FileText, FileJson, Calendar, CheckSquare, DollarSign, Lightbulb, FlaskConical, ClipboardList, BarChart3, Dumbbell, Trash2, Palette, Check, RefreshCw, Database } from 'lucide-react';
 import { db } from '../data/db';
-import { clearDemoData } from '../data/seed';
+import { clearDemoData, loadDemoData } from '../data/seed';
 
 const modules = [
   { key: 'tasks', label: 'Tarefas', icon: CheckSquare, stateKey: 'tasks' },
@@ -56,6 +56,16 @@ const csvMappings = {
   },
 };
 
+const accents = [
+  { id: 'purple', name: 'Roxo', color: '#6c5ce7' },
+  { id: 'rosa', name: 'Rosa (Novo)', color: '#ec4899' },
+  { id: 'green', name: 'Verde', color: '#10b981' },
+  { id: 'red', name: 'Vermelho', color: '#dc2626' },
+  { id: 'blue', name: 'Azul', color: '#3b82f6' },
+  { id: 'gold', name: 'Dourado', color: '#d97706' },
+  { id: 'gray', name: 'Cinza', color: '#6b7280' },
+];
+
 function escapeCSV(val) {
   const str = String(val ?? '');
   if (str.includes(',') || str.includes('"') || str.includes('\n')) {
@@ -80,13 +90,66 @@ function downloadFile(content, filename, mimeType) {
   URL.revokeObjectURL(url);
 }
 
-export default function Export() {
+export default function Config() {
   const appState = useApp();
   const [selectedModules, setSelectedModules] = useState(modules.map(m => m.key));
   const [format, setFormat] = useState('csv');
   const [dateStart, setDateStart] = useState('');
   const [dateEnd, setDateEnd] = useState('');
   const [showConfirmClear, setShowConfirmClear] = useState(false);
+
+  // Theme state
+  const [currentMode, setCurrentMode] = useState('dark');
+  const [currentAccent, setCurrentAccent] = useState('purple');
+
+  useEffect(() => {
+    // Migration logic for old theme strings (e.g. "dark-purple")
+    const legacyTheme = localStorage.getItem('cp_theme');
+    let mode = localStorage.getItem('cp_mode') || 'dark';
+    let accent = localStorage.getItem('cp_accent') || 'purple';
+
+    if (legacyTheme && legacyTheme.startsWith('dark-')) {
+      mode = 'dark';
+      accent = legacyTheme.split('dark-')[1];
+      localStorage.removeItem('cp_theme');
+      localStorage.setItem('cp_mode', mode);
+      localStorage.setItem('cp_accent', accent);
+    }
+
+    setCurrentMode(mode);
+    setCurrentAccent(accent);
+  }, []);
+
+  const handleModeChange = (mode) => {
+    setCurrentMode(mode);
+    localStorage.setItem('cp_mode', mode);
+    document.documentElement.setAttribute('data-mode', mode);
+  };
+
+  const handleAccentChange = (accentId) => {
+    setCurrentAccent(accentId);
+    localStorage.setItem('cp_accent', accentId);
+    document.documentElement.setAttribute('data-accent', accentId);
+  };
+
+  const handleResetData = () => {
+    if (window.confirm('Tem certeza? Isso apagará TODOS os seus dados permanentemente. Essa ação não pode ser desfeita.')) {
+      db.clearAll();
+      db.setInitialized(); // Ensure reseeding never happens alone
+      appState.refreshAll();
+      alert('Dados apagados com sucesso.');
+    }
+  };
+
+  const handleRestoreDemo = () => {
+    if (window.confirm('Isso apagará seus dados atuais e carregará dados de demonstração. Deseja continuar?')) {
+      db.clearAll();
+      db.clearDemoFlag();
+      loadDemoData(true);
+      appState.refreshAll();
+      alert('Dados de demonstração carregados.');
+    }
+  };
 
   const toggleModule = (key) => {
     setSelectedModules(prev =>
@@ -119,7 +182,7 @@ export default function Export() {
       });
       exportData._metadata = {
         exportado_em: new Date().toISOString(),
-        app: 'Personal Performance OS',
+        app: 'Lyria',
         versao_backup: '1.0',
         modulos: selectedModules,
         periodo: { inicio: dateStart || 'todos', fim: dateEnd || 'todos' },
@@ -148,7 +211,7 @@ export default function Export() {
       try {
         const data = JSON.parse(event.target.result);
         
-        if (!data._metadata || data._metadata.app !== 'Personal Performance OS') {
+        if (!data._metadata || (data._metadata.app !== 'Personal Performance OS' && data._metadata.app !== 'Lyria')) {
           alert('Arquivo inválido. O arquivo selecionado não é um backup válido do aplicativo.');
           return;
         }
@@ -190,57 +253,123 @@ export default function Export() {
   return (
     <div className="page-container">
       <div className="page-header">
-        <h1>Dados & Backup</h1>
-        <p>Exporte, importe e gerencie o ciclo de vida dos seus dados</p>
+        <h1>Configurações</h1>
+        <p>Aparência, backup e gerenciamento de dados do sistema</p>
       </div>
 
-      <div className="grid grid-2">
-        {/* Module Selection */}
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">Módulos</span>
-            <div style={{ display: 'flex', gap: 'var(--sp-2)' }}>
-              <button className="btn btn-ghost btn-sm" onClick={selectAll}>Todos</button>
-              <button className="btn btn-ghost btn-sm" onClick={selectNone}>Nenhum</button>
+      <div className="grid grid-2" style={{ alignItems: 'flex-start' }}>
+        {/* Appearance Settings */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-6)' }}>
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
+                <Palette size={16} /> Fundo e Luminosidade
+              </span>
+            </div>
+            <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--sp-4)' }}>
+              Escolha entre o conforto noturno ou o brilho de alta legibilidade.
+            </p>
+            <div style={{ display: 'flex', gap: 'var(--sp-3)' }}>
+              <button
+                key="dark"
+                className={`btn ${currentMode === 'dark' ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => handleModeChange('dark')}
+                style={{ flex: 1 }}
+              >
+                Escuro
+              </button>
+              <button
+                key="light"
+                className={`btn ${currentMode === 'light' ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => handleModeChange('light')}
+                style={{ flex: 1 }}
+              >
+                Claro
+              </button>
             </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
-            {modules.map(mod => (
-              <label key={mod.key} style={{
-                display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', padding: 'var(--sp-2) var(--sp-3)',
-                borderRadius: 'var(--radius-md)', cursor: 'pointer',
-                background: selectedModules.includes(mod.key) ? 'var(--accent-subtle)' : 'transparent',
-                transition: 'background var(--transition-fast)',
-              }}>
-                <input type="checkbox" checked={selectedModules.includes(mod.key)} onChange={() => toggleModule(mod.key)} style={{ accentColor: 'var(--accent)' }} />
-                <mod.icon size={16} style={{ color: selectedModules.includes(mod.key) ? 'var(--accent)' : 'var(--text-tertiary)' }} />
-                <span style={{ flex: 1, fontSize: 'var(--fs-base)', fontWeight: 500 }}>{mod.label}</span>
-                <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-tertiary)' }}>{getModuleCount(mod.key)} registros</span>
-              </label>
-            ))}
+
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
+                <Palette size={16} /> Cor de Destaque
+              </span>
+            </div>
+            <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--sp-4)' }}>
+              Identidade visual do sistema.
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--sp-3)' }}>
+              {accents.map((accent) => {
+                const isActive = currentAccent === accent.id;
+                return (
+                  <button
+                    key={accent.id}
+                    onClick={() => handleAccentChange(accent.id)}
+                    title={accent.name}
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: '50%',
+                      backgroundColor: accent.color,
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all var(--transition-fast)',
+                      boxShadow: isActive ? `0 0 0 3px var(--bg-secondary), 0 0 0 6px ${accent.color}` : 'none',
+                      opacity: isActive ? 1 : 0.7,
+                    }}
+                  >
+                    {isActive && <Check size={20} color="#ffffff" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
+                <Database size={16} /> Banco de Dados
+              </span>
+            </div>
+            <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--sp-4)' }}>
+              Ações críticas sobre as informações salvas localmente.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' }}>
+              <button className="btn btn-secondary" onClick={handleRestoreDemo} style={{ justifyContent: 'center' }}>
+                <RefreshCw size={16} /> Restaurar Dados de Demo
+              </button>
+              <button className="btn btn-danger" onClick={handleResetData} style={{ justifyContent: 'center', background: 'var(--danger-subtle)', color: 'var(--danger)' }}>
+                <Trash2 size={16} /> Apagar Tudo (Reset)
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Export Options */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
+        {/* Export/Import logic */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-6)' }}>
           <div className="card">
-            <div className="card-header"><span className="card-title">Formato</span></div>
-            <div style={{ display: 'flex', gap: 'var(--sp-2)' }}>
-              <button className={`btn ${format === 'csv' ? 'btn-primary' : 'btn-secondary'}`} style={{ flex: 1 }} onClick={() => setFormat('csv')}>
-                <FileText size={16} /> CSV
-              </button>
-              <button className={`btn ${format === 'json' ? 'btn-primary' : 'btn-secondary'}`} style={{ flex: 1 }} onClick={() => setFormat('json')}>
-                <FileJson size={16} /> JSON
-              </button>
+            <div className="card-header">
+              <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
+                <Download size={16} /> Exportação de Dados
+              </span>
             </div>
-            <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-tertiary)', marginTop: 'var(--sp-2)' }}>
-              {format === 'csv' ? 'CSV: cada módulo é exportado em um arquivo separado. Ideal para planilhas.' : 'JSON: todos os módulos em um único arquivo estruturado. Ideal para análise com IA.'}
-            </p>
-          </div>
+            {/* Formato */}
+            <div style={{ marginBottom: 'var(--sp-4)' }}>
+              <div style={{ display: 'flex', gap: 'var(--sp-2)' }}>
+                <button className={`btn ${format === 'csv' ? 'btn-primary' : 'btn-secondary'}`} style={{ flex: 1 }} onClick={() => setFormat('csv')}>
+                  CSV
+                </button>
+                <button className={`btn ${format === 'json' ? 'btn-primary' : 'btn-secondary'}`} style={{ flex: 1 }} onClick={() => setFormat('json')}>
+                  JSON
+                </button>
+              </div>
+            </div>
 
-          <div className="card">
-            <div className="card-header"><span className="card-title">Período (Opcional)</span></div>
-            <div className="form-row">
+            {/* Período */}
+            <div className="form-row" style={{ marginBottom: 'var(--sp-4)' }}>
               <div className="form-group">
                 <label className="form-label">De</label>
                 <input className="form-input" type="date" value={dateStart} onChange={e => setDateStart(e.target.value)} />
@@ -250,53 +379,43 @@ export default function Export() {
                 <input className="form-input" type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)} />
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 'var(--sp-2)', marginTop: 'var(--sp-2)' }}>
-              {[
-                { label: 'Esta semana', fn: () => { const d = new Date(); const day = d.getDay(); const diff = d.getDate() - day + (day === 0 ? -6 : 1); const mon = new Date(d); mon.setDate(diff); setDateStart(mon.toISOString().split('T')[0]); setDateEnd(d.toISOString().split('T')[0]); } },
-                { label: 'Este mês', fn: () => { const d = new Date(); setDateStart(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`); setDateEnd(d.toISOString().split('T')[0]); } },
-                { label: 'Tudo', fn: () => { setDateStart(''); setDateEnd(''); } },
-              ].map(p => (
-                <button key={p.label} className="btn btn-ghost btn-sm" onClick={p.fn}>{p.label}</button>
-              ))}
+
+            {/* Módulos */}
+            <div style={{ marginBottom: 'var(--sp-4)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--sp-2)' }}>
+                <span className="form-label">Módulos</span>
+                <button className="btn btn-ghost btn-sm" onClick={selectAll} style={{ padding: 0 }}>Todos</button>
+              </div>
+              <div className="grid grid-2" style={{ gap: 'var(--sp-2)' }}>
+                {modules.map(mod => (
+                  <label key={mod.key} style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', cursor: 'pointer', fontSize: 'var(--fs-xs)' }}>
+                    <input type="checkbox" checked={selectedModules.includes(mod.key)} onChange={() => toggleModule(mod.key)} style={{ accentColor: 'var(--accent)' }} />
+                    <span style={{ color: selectedModules.includes(mod.key) ? 'var(--text-primary)' : 'var(--text-tertiary)' }}>{mod.label}</span>
+                  </label>
+                ))}
+              </div>
             </div>
+
+            <button className="btn btn-primary" style={{ width: '100%', padding: 'var(--sp-3)' }} onClick={handleExport}
+              disabled={selectedModules.length === 0}>
+              <Download size={16} /> Iniciar Exportação
+            </button>
           </div>
 
-          <button className="btn btn-primary" style={{ padding: 'var(--sp-4)', fontSize: 'var(--fs-md)' }} onClick={handleExport}
-            disabled={selectedModules.length === 0}>
-            <Download size={18} /> Baixar Dados ({selectedModules.length} {selectedModules.length === 1 ? 'módulo' : 'módulos'})
-          </button>
-
-          {/* Import Backup Feature */}
-          <div className="card" style={{ marginTop: 'var(--sp-2)' }}>
-            <div className="card-header"><span className="card-title">Restaurar Backup</span></div>
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
+                <Upload size={16} /> Importar Backup
+              </span>
+            </div>
             <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)', marginBottom: 'var(--sp-4)' }}>
-              Restaure um arquivo JSON gerado via <b>Baixar Dados</b>. Todos os seus dados atuais serão sobrepostos no aplicativo.
+              Substitua todos os dados locais por um arquivo JSON exportado anteriormente.
             </p>
-            <label className="btn btn-secondary" style={{ display: 'flex', justifyContent: 'center', cursor: 'pointer', padding: 'var(--sp-3)' }}>
-              <Upload size={18} /> Restaurar Arquivo de Backup (.json)
+            <label className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', cursor: 'pointer' }}>
+              <Upload size={16} /> Escolher Arquivo .json
               <input type="file" accept=".json" onChange={handleImport} style={{ display: 'none' }} />
             </label>
           </div>
-
-          {/* Clear Demo Data */}
-          {db.isDemoLoaded() && (
-            <div className="card" style={{ borderColor: 'var(--danger-subtle)' }}>
-              <div className="card-header"><span className="card-title" style={{ color: 'var(--danger)' }}>Dados de Demonstração</span></div>
-              <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)', marginBottom: 'var(--sp-3)' }}>
-                O app está carregado com dados de demonstração. Você pode removê-los para começar do zero.
-              </p>
-              {showConfirmClear ? (
-                <div style={{ display: 'flex', gap: 'var(--sp-2)' }}>
-                  <button className="btn btn-danger" onClick={handleClearDemo}><Trash2 size={14} /> Confirmar Remoção</button>
-                  <button className="btn btn-secondary" onClick={() => setShowConfirmClear(false)}>Cancelar</button>
-                </div>
-              ) : (
-                <button className="btn btn-danger" onClick={() => setShowConfirmClear(true)}>
-                  <Trash2 size={14} /> Remover Dados de Demonstração
-                </button>
-              )}
-            </div>
-          )}
         </div>
       </div>
     </div>

@@ -3,8 +3,9 @@ import { useLocation } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import Modal from '../components/Modal';
 import EmptyState from '../components/EmptyState';
-import { Plus, CheckSquare, Search, Trash2, Edit2, Check, ChevronDown } from 'lucide-react';
-import { formatDate, priorityValue, getToday, isTaskCompleted, getTaskPeriodKey } from '../utils/helpers';
+import DateFilter from '../components/DateFilter';
+import { Plus, CheckSquare, Search, Trash2, Edit2, Check, ChevronDown, Archive, RotateCcw, GripVertical } from 'lucide-react';
+import { formatDate, priorityValue, getToday, isTaskCompleted, getTaskPeriodKey, isFutureTask } from '../utils/helpers';
 
 const defaultTask = {
   title: '', description: '', priority: 'média', estimatedHours: '',
@@ -15,7 +16,7 @@ const defaultTask = {
 const categories = ['Marketing', 'Conteúdo', 'Produto', 'Operações', 'Estratégia', 'Pessoal', 'Outro'];
 
 export default function Tasks() {
-  const { tasks, createItem, updateItem, deleteItem } = useApp();
+  const { tasks, createItem, updateItem, updateBatch, deleteItem } = useApp();
   const location = useLocation();
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -23,8 +24,12 @@ export default function Tasks() {
   const [search, setSearch] = useState('');
   const [filterPriority, setFilterPriority] = useState('todas');
   const [filterStatus, setFilterStatus] = useState('todas');
-  const [sortBy, setSortBy] = useState('priority');
+  const [sortBy, setSortBy] = useState('manual');
+  const [draggedId, setDraggedId] = useState(null);
+  const [draggableTask, setDraggableTask] = useState(null);
   const [fastAdd, setFastAdd] = useState('');
+  const [activeTab, setActiveTab] = useState('ativas');
+  const [historyFilter, setHistoryFilter] = useState({ period: '30 dias', start: '', end: '' });
 
   useEffect(() => {
     if (location.state?.quickAdd) {
@@ -35,28 +40,58 @@ export default function Tasks() {
 
   const filtered = useMemo(() => {
     let result = [...tasks];
+
+    if (activeTab === 'ativas') {
+      result = result.filter(t => t.status !== 'excluída' && !isTaskCompleted(t));
+    } else {
+      result = result.filter(t => t.status === 'excluída' || isTaskCompleted(t));
+      
+      // Data customizada no Histórico
+      if (historyFilter.start && historyFilter.end) {
+        result = result.filter(t => {
+           let targetDate = t.deletedAt || t.completedAt;
+           if (!targetDate && t.status === 'excluída') targetDate = t.createdAt; 
+           if (!targetDate && isTaskCompleted(t)) {
+             if (t.completedDates && t.completedDates.length > 0) {
+               targetDate = t.completedDates[t.completedDates.length - 1];
+             } else {
+               targetDate = t.createdAt;
+             }
+           }
+           if (!targetDate) return true;
+           const dateStr = targetDate.substring(0, 10);
+           return dateStr >= historyFilter.start && dateStr <= historyFilter.end;
+        });
+      }
+    }
+
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(t => t.title.toLowerCase().includes(q) || (t.category || '').toLowerCase().includes(q));
     }
     if (filterPriority !== 'todas') result = result.filter(t => t.priority === filterPriority);
-    if (filterStatus !== 'todas') {
-      if (filterStatus === 'concluída') result = result.filter(t => isTaskCompleted(t));
-      else if (filterStatus === 'pendente') result = result.filter(t => !isTaskCompleted(t));
-      else result = result.filter(t => t.status === filterStatus);
+    
+    if (activeTab === 'arquivo') {
+       if (filterStatus === 'concluída') result = result.filter(t => isTaskCompleted(t) && t.status !== 'excluída');
+       if (filterStatus === 'excluída') result = result.filter(t => t.status === 'excluída');
+    } else {
+       if (filterStatus !== 'todas') {
+         result = result.filter(t => t.status === filterStatus);
+       }
     }
 
     result.sort((a, b) => {
+      if (sortBy === 'manual') return (a.order || 0) - (b.order || 0);
       if (sortBy === 'priority') return priorityValue(b.priority) - priorityValue(a.priority);
       if (sortBy === 'date') return (a.dueDate || '9999') > (b.dueDate || '9999') ? 1 : -1;
       if (sortBy === 'status') {
-        const order = { pendente: 0, em_andamento: 1, concluída: 2 };
-        return order[a.status] - order[b.status];
+        const order = { pendente: 0, em_andamento: 1, concluída: 2, excluída: 3 };
+        return (order[a.status] || 0) - (order[b.status] || 0);
       }
       return 0;
     });
     return result;
-  }, [tasks, search, filterPriority, filterStatus, sortBy]);
+  }, [tasks, search, filterPriority, filterStatus, sortBy, activeTab, historyFilter]);
 
   const handleSubmit = () => {
     if (!form.title.trim()) return;
@@ -94,6 +129,34 @@ export default function Tasks() {
     }
   };
 
+  const handleDragStart = (e, task) => {
+    setDraggedId(task.id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDrop = (e, targetTask) => {
+    e.preventDefault();
+    if (!draggedId || draggedId === targetTask.id) return;
+    if (activeTab !== 'ativas') return;
+
+    const sourceIndex = filtered.findIndex(t => t.id === draggedId);
+    const targetIndex = filtered.findIndex(t => t.id === targetTask.id);
+    if (sourceIndex === -1 || targetIndex === -1) return;
+
+    const newFiltered = [...filtered];
+    const [moved] = newFiltered.splice(sourceIndex, 1);
+    newFiltered.splice(targetIndex, 0, moved);
+
+    const updates = newFiltered.map((t, index) => ({
+      id: t.id,
+      updates: { order: index }
+    }));
+    
+    if (sortBy !== 'manual') setSortBy('manual');
+    updateBatch('tasks', updates);
+    setDraggedId(null);
+  };
+
   const handleFastAdd = (e) => {
     if (e.key === 'Enter' && fastAdd.trim()) {
       createItem('tasks', { ...defaultTask, title: fastAdd.trim(), scheduledDate: getToday() });
@@ -116,20 +179,35 @@ export default function Tasks() {
         </button>
       </div>
 
-      {/* Fast Add */}
-      <div style={{ marginBottom: 'var(--sp-4)' }}>
-        <div style={{ position: 'relative' }}>
-          <Plus size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
-          <input
-            className="form-input"
-            placeholder="Adicionar tarefa rapidamente... (Enter para criar)"
-            value={fastAdd}
-            onChange={e => setFastAdd(e.target.value)}
-            onKeyDown={handleFastAdd}
-            style={{ paddingLeft: 36 }}
-          />
-        </div>
+      <div className="tabs" style={{ marginBottom: 'var(--sp-6)' }}>
+        <button className={`tab ${activeTab === 'ativas' ? 'active' : ''}`} onClick={() => { setActiveTab('ativas'); setFilterStatus('todas'); }}>
+          <CheckSquare size={16} style={{ marginRight: 'var(--sp-2)' }} /> Ativas
+        </button>
+        <button className={`tab ${activeTab === 'arquivo' ? 'active' : ''}`} onClick={() => { setActiveTab('arquivo'); setFilterStatus('todas'); }}>
+          <Archive size={16} style={{ marginRight: 'var(--sp-2)' }} /> Histórico
+        </button>
       </div>
+
+      {activeTab === 'arquivo' && (
+        <DateFilter onChange={setHistoryFilter} />
+      )}
+
+      {/* Fast Add */}
+      {activeTab === 'ativas' && (
+        <div style={{ marginBottom: 'var(--sp-4)' }}>
+          <div style={{ position: 'relative' }}>
+            <Plus size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
+            <input
+              className="form-input"
+              placeholder="Adicionar tarefa rapidamente... (Enter para criar)"
+              value={fastAdd}
+              onChange={e => setFastAdd(e.target.value)}
+              onKeyDown={handleFastAdd}
+              style={{ paddingLeft: 36 }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="filter-bar">
@@ -144,12 +222,22 @@ export default function Tasks() {
           <option value="baixa">Baixa</option>
         </select>
         <select className="form-select" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-          <option value="todas">Todos status</option>
-          <option value="pendente">Pendente</option>
-          <option value="em_andamento">Em Andamento</option>
-          <option value="concluída">Concluída</option>
+          <option value="todas">{activeTab === 'arquivo' ? 'Todas' : 'Todos status'}</option>
+          {activeTab === 'ativas' && (
+            <>
+              <option value="pendente">Pendente</option>
+              <option value="em_andamento">Em Andamento</option>
+            </>
+          )}
+          {activeTab === 'arquivo' && (
+            <>
+              <option value="concluída">Concluídas</option>
+              <option value="excluída">Excluídas</option>
+            </>
+          )}
         </select>
         <select className="form-select" value={sortBy} onChange={e => setSortBy(e.target.value)}>
+          <option value="manual">Ordem Manual</option>
           <option value="priority">Prioridade</option>
           <option value="date">Data</option>
           <option value="status">Status</option>
@@ -166,18 +254,36 @@ export default function Tasks() {
         />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
-          {filtered.map(task => (
+          {filtered.map(task => {
+            const future = isFutureTask(task);
+            return (
             <div
               key={task.id}
               className="card"
+              draggable={activeTab === 'ativas' && draggableTask === task.id}
+              onDragStart={e => handleDragStart(e, task)}
+              onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+              onDrop={e => handleDrop(e, task)}
               style={{
                 padding: 'var(--sp-3) var(--sp-4)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 'var(--sp-3)',
-                opacity: task.status === 'concluída' ? 0.6 : 1,
+                opacity: task.status === 'concluída' ? 0.6 : (future ? 0.65 : 1),
+                border: future ? '1px dashed var(--border)' : '1px solid var(--border)',
+                background: future ? 'var(--bg-primary)' : 'var(--bg-elevated)',
+                cursor: 'default',
               }}
             >
+              {activeTab === 'ativas' && (
+                <div 
+                  style={{ cursor: 'grab', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center' }}
+                  onMouseEnter={() => setDraggableTask(task.id)}
+                  onMouseLeave={() => setDraggableTask(null)}
+                >
+                  <GripVertical size={16} />
+                </div>
+              )}
               <button
                 className={`checkbox ${isTaskCompleted(task) ? 'checked' : ''}`}
                 onClick={() => handleToggleComplete(task)}
@@ -188,8 +294,8 @@ export default function Tasks() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', flexWrap: 'wrap' }}>
                   <span style={{
                     fontWeight: 500,
-                    textDecoration: isTaskCompleted(task) ? 'line-through' : 'none',
-                    color: isTaskCompleted(task) ? 'var(--text-tertiary)' : 'var(--text-primary)',
+                    textDecoration: isTaskCompleted(task) || task.status === 'excluída' ? 'line-through' : 'none',
+                    color: isTaskCompleted(task) || task.status === 'excluída' ? 'var(--text-tertiary)' : 'var(--text-primary)',
                   }}>
                     {task.title}
                   </span>
@@ -201,21 +307,37 @@ export default function Tasks() {
                 <div style={{ display: 'flex', gap: 'var(--sp-4)', marginTop: 'var(--sp-1)', fontSize: 'var(--fs-xs)', color: 'var(--text-tertiary)' }}>
                   {task.dueDate && <span>Prazo: {formatDate(task.dueDate)}</span>}
                   {task.estimatedHours && <span>{task.estimatedHours}h estimadas</span>}
-                  {task.status !== 'concluída' && task.status !== 'pendente' && (
+                  {task.status !== 'concluída' && task.status !== 'pendente' && task.status !== 'excluída' && (
                     <span style={{ color: statusColor[task.status] }}>{statusLabel[task.status]}</span>
+                  )}
+                  {task.status === 'excluída' && (
+                    <span style={{ color: 'var(--danger)' }}>Excluída</span>
                   )}
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 'var(--sp-1)' }}>
-                <button className="btn-icon btn-ghost" onClick={() => handleEdit(task)} title="Editar">
-                  <Edit2 size={15} />
-                </button>
-                <button className="btn-icon btn-ghost" onClick={() => deleteItem('tasks', task.id)} title="Excluir" style={{ color: 'var(--danger)' }}>
-                  <Trash2 size={15} />
-                </button>
-              </div>
+              
+              {activeTab === 'ativas' ? (
+                <div style={{ display: 'flex', gap: 'var(--sp-1)' }}>
+                  <button className="btn-icon btn-ghost" onClick={() => handleEdit(task)} title="Editar">
+                    <Edit2 size={15} />
+                  </button>
+                  <button className="btn-icon btn-ghost" onClick={() => updateItem('tasks', task.id, { status: 'excluída', deletedAt: new Date().toISOString() })} title="Excluir" style={{ color: 'var(--text-tertiary)' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--danger)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-tertiary)'}>
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 'var(--sp-1)' }}>
+                  <button className="btn-icon btn-ghost" onClick={() => updateItem('tasks', task.id, { status: 'pendente', completedAt: null, deletedAt: null, completedDates: [] })} title="Restaurar" style={{ color: 'var(--accent)' }}>
+                    <RotateCcw size={15} />
+                  </button>
+                  <button className="btn-icon btn-ghost" onClick={() => deleteItem('tasks', task.id)} title="Excluir Permanentemente" style={{ color: 'var(--text-tertiary)' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--danger)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-tertiary)'}>
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -257,6 +379,7 @@ export default function Tasks() {
                 <option value="única">Única</option>
                 <option value="diária">Diária</option>
                 <option value="semanal">Semanal</option>
+                <option value="mensal">Mensal</option>
               </select>
             </div>
             {form.recurrence === 'semanal' && (
@@ -272,6 +395,20 @@ export default function Tasks() {
                   <option value="6">Sábado</option>
                   <option value="0">Domingo</option>
                 </select>
+              </div>
+            )}
+            {form.recurrence === 'mensal' && (
+              <div className="form-group">
+                <label className="form-label">Dia do Mês</label>
+                <input 
+                  type="number" 
+                  min="1" 
+                  max="31" 
+                  className="form-input" 
+                  placeholder="Ex: 15"
+                  value={form.recurrenceDay || ''} 
+                  onChange={e => setForm({ ...form, recurrenceDay: e.target.value })} 
+                />
               </div>
             )}
           </div>

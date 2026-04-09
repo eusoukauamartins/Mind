@@ -216,7 +216,7 @@ export default function Finance() {
             {formatCurrency(metrics.profit)}
           </span>
         </div>
-        <div className="stat-card" style={{ position: 'relative' }}>
+        <div className="stat-card card-accent" style={{ position: 'relative' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span className="stat-label" style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
               Saldo Bancário Global
@@ -234,7 +234,7 @@ export default function Finance() {
                 title="Histórico de Saldo"
                 style={{ display: 'inline-flex', padding: '4px', opacity: 1, borderRadius: '4px', color: showBalanceHistory ? 'var(--text-primary)' : 'var(--text-tertiary)', background: showBalanceHistory ? 'var(--bg-hover)' : 'transparent' }}
               >
-                <LineChartIcon size={14} />
+                <LineChartIcon size={14} style={{ color: showBalanceHistory ? 'var(--accent)' : 'var(--text-tertiary)' }} />
               </button>
             </span>
             <Wallet size={18} style={{ color: 'var(--accent)' }} />
@@ -246,7 +246,7 @@ export default function Finance() {
           {showBalanceHistory && (
             <div style={{
               position: 'absolute', top: '100%', left: '0', zIndex: 50, minWidth: 340,
-              background: 'var(--bg-elevated)', border: '1px solid var(--border)', 
+              background: 'var(--bg-elevated)', border: '1px solid var(--accent-glow)', 
               borderRadius: 'var(--radius-lg)', padding: 'var(--sp-4)', marginTop: 'var(--sp-2)',
               boxShadow: '0 8px 32px rgba(0,0,0,0.6)'
             }}>

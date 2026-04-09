@@ -67,7 +67,7 @@ export default function CalendarPage() {
   };
 
   const handleToggleComplete = (task, dateStr) => {
-    if (task.recurrence === 'diária' || task.recurrence === 'semanal') {
+    if (task.recurrence === 'diária' || task.recurrence === 'semanal' || task.recurrence === 'mensal') {
       const periodKey = getTaskPeriodKey(task, new Date(dateStr + 'T12:00:00'));
       const history = task.completedDates || [];
       if (history.includes(periodKey)) {
@@ -376,6 +376,7 @@ export default function CalendarPage() {
                 <option value="única">Única</option>
                 <option value="diária">Diária</option>
                 <option value="semanal">Semanal</option>
+                <option value="mensal">Mensal</option>
               </select>
             </div>
             {form.recurrence === 'semanal' && (
@@ -391,6 +392,20 @@ export default function CalendarPage() {
                   <option value="6">Sábado</option>
                   <option value="0">Domingo</option>
                 </select>
+              </div>
+            )}
+            {form.recurrence === 'mensal' && (
+              <div className="form-group">
+                <label className="form-label">Dia do Mês</label>
+                <input 
+                  type="number" 
+                  min="1" 
+                  max="31" 
+                  className="form-input" 
+                  placeholder="Ex: 15"
+                  value={form.recurrenceDay || ''} 
+                  onChange={e => setForm({ ...form, recurrenceDay: e.target.value })} 
+                />
               </div>
             )}
           </div>

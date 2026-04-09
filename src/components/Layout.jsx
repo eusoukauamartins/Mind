@@ -7,6 +7,15 @@ import {
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useApp } from '../contexts/AppContext';
+import { ErrorBoundary } from './ErrorBoundary';
+
+const LyriaIcon = ({ size = 24 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 22s5-3 5-8-5-10-5-10-5 5-5 10 5 8 5 8z" />
+    <path d="M12 22s8-3 8-10c0-4-3-6-3-6s-1 4-5 6" />
+    <path d="M12 22s-8-3-8-10c0-4 3-6 3-6s1 4 5 6" />
+  </svg>
+);
 
 const navGroups = [
   // 1
@@ -35,8 +44,7 @@ const navGroups = [
   ],
   // 6
   [
-    { to: '/configuracoes', icon: Settings, label: 'Configurações' },
-    { to: '/exportar', icon: Download, label: 'Dados & Backup' }
+    { to: '/configuracoes', icon: Settings, label: 'Configurações' }
   ]
 ];
 
@@ -53,31 +61,7 @@ export default function Layout({ children }) {
     document.documentElement.setAttribute('data-theme', savedTheme);
   }, []);
 
-  const handleBackup = () => {
-    const data = {
-      tasks: appState.tasks,
-      finance: appState.finance,
-      learnings: appState.learnings,
-      experiments: appState.experiments,
-      weeklyReviews: appState.weeklyReviews,
-      dailyCheckIns: appState.dailyCheckIns,
-      timeAllocations: appState.timeAllocations,
-      workoutRoutines: appState.workoutRoutines,
-      workoutLogs: appState.workoutLogs,
-      _metadata: {
-        backup_at: new Date().toISOString(),
-        app: 'Mind',
-      },
-    };
-    const json = JSON.stringify(data, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `comando_pessoal_backup_${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+
 
   return (
     <div className="app-layout">
@@ -86,20 +70,49 @@ export default function Layout({ children }) {
         <button className="btn-icon" onClick={() => setMobileOpen(!mobileOpen)}>
           {mobileOpen ? <X size={22} /> : <Menu size={22} />}
         </button>
-        <span style={{ fontWeight: 600, fontSize: 'var(--fs-md)' }}>Mind</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
+          <LyriaIcon size={20} />
+          <span style={{ fontWeight: 600, fontSize: 'var(--fs-md)' }}>Lyria</span>
+        </div>
         <div style={{ width: 22 }} />
       </div>
 
       {/* Sidebar */}
       <aside className={`sidebar ${mobileOpen ? 'mobile-open' : ''} ${collapsed ? 'collapsed' : ''}`} style={{ width: collapsed ? '60px' : 'var(--sidebar-width)' }}>
-        <div className="sidebar-logo" style={{ display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between' }}>
-          <div className="logo-icon">
-            <img src="/favicon.svg" alt="Mind" width={18} height={18} />
+        <div 
+          className="sidebar-logo" 
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            flexDirection: collapsed ? 'column' : 'row',
+            justifyContent: collapsed ? 'center' : 'space-between',
+            gap: collapsed ? 'var(--sp-3)' : 0
+          }}
+        >
+          <div className="logo-icon" style={{ background: 'transparent', display: 'flex', alignItems: 'center' }}>
+            <LyriaIcon size={collapsed ? 26 : 28} />
           </div>
-          {!collapsed && <h2>Mind</h2>}
-          <button className="btn btn-ghost btn-sm" onClick={() => setCollapsed(!collapsed)} title={collapsed ? 'Mostrar categorias' : 'Ocultar categorias'} style={{ marginLeft: collapsed ? 0 : 'var(--sp-2)' }}>
-            {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-          </button>
+          
+          {!collapsed ? (
+            <>
+              <h2 style={{ fontSize: 'var(--fs-lg)', marginLeft: 'var(--sp-1)', flex: 1 }}>Lyria</h2>
+              <button 
+                className="btn btn-ghost btn-sm" 
+                onClick={() => setCollapsed(true)} 
+                title="Ocultar categorias"
+              >
+                <ChevronLeft size={16} />
+              </button>
+            </>
+          ) : (
+            <button 
+              className="btn btn-ghost btn-sm" 
+              onClick={() => setCollapsed(false)} 
+              title="Expandir categorias"
+            >
+              <ChevronRight size={16} />
+            </button>
+          )}
         </div>
         <nav className="sidebar-nav">
           {navGroups.map((group, index) => (
@@ -112,8 +125,8 @@ export default function Layout({ children }) {
                   className={({ isActive }) => isActive ? 'active' : ''}
                   onClick={() => setMobileOpen(false)}
                 >
-                  <item.icon size={18} />
-                  {!collapsed && <span>{item.label}</span>}
+                  <item.icon size={20} style={{ minWidth: 20 }} />
+                  {!collapsed && <span style={{ marginLeft: 'var(--sp-1)' }}>{item.label}</span>}
                 </NavLink>
               ))}
               {index < navGroups.length - 1 && (
@@ -122,31 +135,26 @@ export default function Layout({ children }) {
             </div>
           ))}
         </nav>
-        {/* Backup button */}
-        <div className="sidebar-footer" style={{ marginTop: 'auto', padding: 'var(--sp-4)' }}>
-          <button className="btn btn-primary btn-full" onClick={handleBackup} style={{ width: '100%' }}>
-            <Download size={16} style={{ marginRight: 'var(--sp-2)' }} /> Backup Dados
-          </button>
-        </div>
+
       </aside>
 
       {/* Main Content */}
       <main className="main-content" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         <div style={{ flex: 1 }}>
-          {children}
+          <ErrorBoundary key={location.pathname}>
+            {children}
+          </ErrorBoundary>
         </div>
         <footer style={{ 
           textAlign: 'center', 
           padding: 'var(--sp-10) 0 var(--sp-6)', 
           fontSize: '12px', 
           color: 'var(--text-secondary)', 
-          opacity: 0.7,
-          fontWeight: 500,
-          letterSpacing: '0.05em',
-          userSelect: 'none',
-          marginTop: 'auto'
+          opacity: 0.8,
+          letterSpacing: '0.03em',
+          backdropFilter: 'blur(10px)',
         }}>
-          @ Made by Kauã
+          @ Lyria by Kauã
         </footer>
       </main>
 

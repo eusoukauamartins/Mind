@@ -76,9 +76,11 @@ export default function Dashboard() {
     // Pending tasks
     const pendingTasks = tasks.filter(t => !isTaskCompleted(t)).length;
 
-    // Focus
-    const todayHighPriority = todayTasks.filter(t => t.priority === 'alta' && !isTaskCompleted(t, new Date(today + 'T12:00:00')));
-    const mainFocus = todayHighPriority[0]?.title || todayTasks.find(t => !isTaskCompleted(t, new Date(today + 'T12:00:00')))?.title || 'Nenhuma tarefa agendada';
+    // Focus: Top 3 active tasks based on manual order
+    const activeOverall = tasks
+      .filter(t => t.status !== 'excluída' && !isTaskCompleted(t))
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+    const topFocusTasks = activeOverall.slice(0, 3);
 
     // Week chart data (last 7 days)
     const weekChartData = [];
@@ -103,7 +105,7 @@ export default function Dashboard() {
       todayCompleted, todayTotal: todayTasks.length, todayProgress, dailyScore,
       periodCompleted, periodTotal, periodProgress,
       periodIncome, periodExpenses, periodProfit,
-      periodTrainedDays, pendingTasks, mainFocus,
+      periodTrainedDays, pendingTasks, topFocusTasks,
       weekChartData,
       latestReview: weeklyReviews[weeklyReviews.length - 1],
     };
@@ -123,17 +125,28 @@ export default function Dashboard() {
 
       {/* Main Focus & Monthly Goal */}
       <div className="grid grid-2" style={{ marginBottom: 'var(--sp-6)' }}>
-        <div className="card" style={{ background: 'linear-gradient(135deg, var(--bg-tertiary) 0%, var(--accent-subtle) 100%)', borderColor: 'var(--accent-glow)' }}>
+        <div className="card" style={{ background: 'linear-gradient(135deg, var(--bg-secondary) 0%, var(--accent-subtle) 100%)', border: '1px solid var(--accent)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' }}>
             <Target size={20} style={{ color: 'var(--accent)' }} />
             <span className="card-title" style={{ marginBottom: 0 }}>Foco Principal de Hoje</span>
           </div>
-          <p style={{ fontSize: 'var(--fs-lg)', fontWeight: 600, marginTop: 'var(--sp-3)' }}>
-            {metrics.mainFocus}
-          </p>
+          <div style={{ marginTop: 'var(--sp-3)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
+            {metrics.topFocusTasks.length > 0 ? (
+              metrics.topFocusTasks.map((t, idx) => (
+                <div key={t.id || idx} style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--sp-2)' }}>
+                  <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{idx + 1}.</span>
+                  <span style={{ fontWeight: 500, color: 'var(--text-primary)', fontSize: 'var(--fs-md)' }}>{t.title}</span>
+                </div>
+              ))
+            ) : (
+              <p style={{ fontSize: 'var(--fs-md)', color: 'var(--text-tertiary)', fontStyle: 'italic' }}>
+                Nenhuma tarefa pendente.
+              </p>
+            )}
+          </div>
         </div>
 
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' }}>
+        <div className="card card-accent" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' }}>
             <DollarSign size={20} style={{ color: 'var(--success)' }} />
             <span className="card-title" style={{ marginBottom: 0 }}>Meta Financeira do Mês</span>
@@ -201,11 +214,11 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="stat-card">
+        <div className="stat-card card-accent">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span className="stat-label">Score do Dia</span>
-            <div className="stat-icon" style={{ background: 'var(--teal-subtle)' }}>
-              <Zap size={18} style={{ color: 'var(--teal)' }} />
+            <div className="stat-icon" style={{ background: 'var(--accent-subtle)' }}>
+              <Zap size={18} style={{ color: 'var(--accent)' }} />
             </div>
           </div>
           <span className="stat-value">{metrics.dailyScore}<span style={{ fontSize: 'var(--fs-base)', color: 'var(--text-secondary)' }}>/100</span></span>
@@ -274,7 +287,7 @@ export default function Dashboard() {
         <div className="card">
           <div className="card-header">
             <span className="card-title">Produtividade Semanal</span>
-            <Flame size={16} style={{ color: 'var(--text-tertiary)' }} />
+            <Flame size={16} style={{ color: 'var(--accent)' }} />
           </div>
           <ResponsiveContainer width="100%" height={160}>
             <BarChart data={metrics.weekChartData}>
@@ -294,10 +307,10 @@ export default function Dashboard() {
       {/* Week Summary + Quick Links */}
       <div className="grid grid-2" style={{ marginBottom: 'var(--sp-6)' }}>
         {/* Week Summary */}
-        <div className="card">
+        <div className="card card-accent">
           <div className="card-header">
             <span className="card-title">Resumo do Período</span>
-            <Calendar size={16} style={{ color: 'var(--text-tertiary)' }} />
+            <Calendar size={16} style={{ color: 'var(--accent)' }} />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -326,9 +339,9 @@ export default function Dashboard() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--sp-2)' }}>
             {[
               { icon: CheckSquare, label: 'Tarefas', path: '/tarefas', color: 'var(--accent)' },
-              { icon: DollarSign, label: 'Finanças', path: '/financas', color: 'var(--success)' },
-              { icon: Lightbulb, label: 'Aprendizados', path: '/aprendizados', color: 'var(--warning)' },
-              { icon: FlaskConical, label: 'Experimentos', path: '/experimentos', color: 'var(--info)' },
+              { icon: DollarSign, label: 'Finanças', path: '/financas', color: 'var(--accent)' },
+              { icon: Lightbulb, label: 'Aprendizados', path: '/aprendizados', color: 'var(--accent)' },
+              { icon: FlaskConical, label: 'Experimentos', path: '/experimentos', color: 'var(--accent)' },
             ].map(item => (
               <button
                 key={item.path}

@@ -13,7 +13,6 @@ import WeeklyReview from './pages/WeeklyReview'
 import Performance from './pages/Performance'
 import Workout from './pages/Workout'
 import Export from './pages/Export'
-import Settings from './pages/Settings'
 
 function App() {
   const { refreshAll } = useApp()
@@ -34,8 +33,7 @@ function App() {
         <Route path="/revisao" element={<WeeklyReview />} />
         <Route path="/desempenho" element={<Performance />} />
         <Route path="/treino" element={<Workout />} />
-        <Route path="/exportar" element={<Export />} />
-        <Route path="/configuracoes" element={<Settings />} />
+        <Route path="/configuracoes" element={<Export />} />
       </Routes>
       <QuickAdd />
     </Layout>

@@ -8,10 +8,18 @@ const daysAgo = (n) => { const d = new Date(today); d.setDate(d.getDate() - n); 
 const daysFromNow = (n) => { const d = new Date(today); d.setDate(d.getDate() + n); return toISO(d); };
 
 export function loadDemoData(force = false) {
-  if (!force && (db.isDemoLoaded() || db.hasData())) {
-    if (!db.isDemoLoaded() && db.hasData()) db.setDemoLoaded(); // Prevent future loads if user already has data
+  if (!force && db.isInitialized()) {
     return;
   }
+  
+  if (!force && (db.isDemoLoaded() || db.hasData())) {
+    db.setInitialized();
+    if (!db.isDemoLoaded() && db.hasData()) db.setDemoLoaded();
+    return;
+  }
+
+  // If we reach here, we are seeding for the first time
+  db.setInitialized();
   const tasks = [
     { title: 'Revisar landing page do produto', description: 'Ajustar copy e CTA principal', priority: 'alta', estimatedHours: 2, status: 'concluída', dueDate: daysAgo(0), scheduledDate: daysAgo(0), category: 'Marketing', completedAt: new Date().toISOString() },
     { title: 'Gravar vídeo para o Instagram', priority: 'alta', estimatedHours: 1.5, status: 'em_andamento', dueDate: daysAgo(0), scheduledDate: daysAgo(0), category: 'Conteúdo' },

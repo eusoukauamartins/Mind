@@ -4,11 +4,29 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Mind — Sistema pessoal de produtividade, finanças e performance para criadores e fundadores solo." />
+    <meta name="description" content="Lyria — Sistema pessoal de produtividade, finanças e performance para criadores e fundadores solo." />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <title>Mind</title>
+    <title>Lyria</title>
+    <script>
+      (function() {
+        try {
+          var mode = localStorage.getItem('cp_mode') || 'dark';
+          var accent = localStorage.getItem('cp_accent');
+          if (!accent) {
+            var legacy = localStorage.getItem('cp_theme');
+            if (legacy && legacy.startsWith('dark-')) {
+              accent = legacy.split('dark-')[1];
+            } else {
+              accent = 'purple';
+            }
+          }
+          document.documentElement.setAttribute('data-mode', mode);
+          document.documentElement.setAttribute('data-accent', accent);
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

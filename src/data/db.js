@@ -45,6 +45,7 @@ export const db = {
       ...item,
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
+      order: items.length > 0 ? Math.max(...items.map(t => t.order || 0)) + 1 : 0
     };
     items.push(newItem);
     this.set(collection, items);
@@ -60,6 +61,24 @@ export const db = {
     return items[index];
   },
 
+  updateBatch(collection, updatesArray) {
+    const items = this.get(collection);
+    let changed = false;
+    
+    for (const update of updatesArray) {
+      const index = items.findIndex(item => item.id === update.id);
+      if (index !== -1) {
+        items[index] = { ...items[index], ...update.updates };
+        changed = true;
+      }
+    }
+    
+    if (changed) {
+      this.set(collection, items);
+    }
+    return changed;
+  },
+
   remove(collection, id) {
     const items = this.get(collection);
     const filtered = items.filter(item => item.id !== id);
@@ -71,8 +90,21 @@ export const db = {
   },
 
   clearAll() {
-    const keys = Object.keys(localStorage).filter(k => k.startsWith(STORAGE_PREFIX));
+    const keys = Object.keys(localStorage).filter(k => 
+      k.startsWith(STORAGE_PREFIX) && 
+      !k.includes('initialized') && 
+      !k.includes('mode') && 
+      !k.includes('accent')
+    );
     keys.forEach(k => localStorage.removeItem(k));
+  },
+
+  isInitialized() {
+    return localStorage.getItem(STORAGE_PREFIX + 'initialized') === 'true';
+  },
+
+  setInitialized() {
+    localStorage.setItem(STORAGE_PREFIX + 'initialized', 'true');
   },
 
   hasData() {

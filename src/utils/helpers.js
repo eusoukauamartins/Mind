@@ -135,11 +135,14 @@ export function getTaskPeriodKey(task, date = new Date()) {
   if (task.recurrence === 'semanal') {
     return getWeekRef(date); // YYYY-Sxx
   }
+  if (task.recurrence === 'mensal') {
+    return date.toISOString().substring(0, 7); // YYYY-MM
+  }
   return '';
 }
 
 export function isTaskCompleted(task, date = new Date()) {
-  if (task.recurrence === 'diária' || task.recurrence === 'semanal') {
+  if (task.recurrence === 'diária' || task.recurrence === 'semanal' || task.recurrence === 'mensal') {
     const periodKey = getTaskPeriodKey(task, date);
     return (task.completedDates || []).includes(periodKey);
   }
@@ -155,12 +158,29 @@ export function isTaskActiveOnDate(task, dateStr) {
     }
     return true;
   }
+  if (task.recurrence === 'mensal') {
+    if (task.recurrenceDay) {
+      const d = new Date(dateStr + 'T12:00:00');
+      return String(task.recurrenceDay) === String(d.getDate());
+    }
+    return true;
+  }
   return task.scheduledDate === dateStr || task.dueDate === dateStr;
 }
 
 export function isTaskActiveInWeek(task) {
-  if (task.recurrence === 'diária' || task.recurrence === 'semanal') return true;
+  if (task.recurrence === 'diária' || task.recurrence === 'semanal' || task.recurrence === 'mensal') return true;
   if (task.scheduledDate) return isThisWeek(task.scheduledDate);
   if (task.dueDate) return isThisWeek(task.dueDate);
   return false;
+}
+
+export function isFutureTask(task) {
+  if (task.recurrence === 'diária' || task.recurrence === 'semanal' || task.recurrence === 'mensal') return false;
+  if (!task.scheduledDate && !task.dueDate) return false;
+  
+  const today = getToday();
+  const d = task.scheduledDate || task.dueDate;
+  
+  return d > today;
 }
