@@ -30,7 +30,10 @@ export default function CalendarPage() {
 
   // Dynamic Task fetcher
   const getTasksForDate = (dateStr) => {
-    const list = tasks.filter(t => isTaskActiveOnDate(t, dateStr));
+    const list = tasks.filter(t => 
+      isTaskActiveOnDate(t, dateStr) && 
+      (!t.recurrence || t.recurrence === 'única' || t.recurrence === 'mensal')
+    );
     list.sort((a, b) => {
       const ta = a.scheduledTime || '99:99';
       const tb = b.scheduledTime || '99:99';

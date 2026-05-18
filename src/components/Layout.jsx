@@ -3,7 +3,7 @@ import {
   LayoutDashboard, CheckSquare, Calendar, DollarSign, Lightbulb,
   FlaskConical, ClipboardList, BarChart3, Dumbbell, Download,
   Menu, X, Zap,
-  ChevronLeft, ChevronRight, Settings
+  ChevronLeft, ChevronRight, Settings, FolderKanban
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useApp } from '../contexts/AppContext';
@@ -25,6 +25,7 @@ const navGroups = [
   // 2
   [
     { to: '/tarefas', icon: CheckSquare, label: 'Tarefas' },
+    { to: '/projetos', icon: FolderKanban, label: 'Projetos' },
     { to: '/calendario', icon: Calendar, label: 'Calendário' }
   ],
   // 3

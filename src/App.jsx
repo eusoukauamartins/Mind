@@ -13,6 +13,7 @@ import WeeklyReview from './pages/WeeklyReview'
 import Performance from './pages/Performance'
 import Workout from './pages/Workout'
 import Export from './pages/Export'
+import Projects from './pages/Projects'
 
 function App() {
   const { refreshAll } = useApp()
@@ -26,6 +27,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/tarefas" element={<Tasks />} />
+        <Route path="/projetos" element={<Projects />} />
         <Route path="/calendario" element={<CalendarPage />} />
         <Route path="/financas" element={<Finance />} />
         <Route path="/aprendizados" element={<Learnings />} />

@@ -246,10 +246,12 @@ img { max-width: 100%; display: block; }
   max-width: 1200px;
   margin: 0 auto;
   padding: var(--sp-6) var(--sp-8);
+  animation: pageEnter 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .page-header {
   margin-bottom: var(--sp-8);
+  animation: staggerFadeUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both;
 }
 
 .page-header h1 {
@@ -440,6 +442,214 @@ img { max-width: 100%; display: block; }
   .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
 }
 
+/* ===== DASHBOARD GRID ===== */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: var(--sp-6);
+}
+
+.dashboard-widget {
+  grid-column: span 6;
+}
+
+.dashboard-widget.full-width {
+  grid-column: span 12;
+}
+
+@media (max-width: 900px) {
+  .dashboard-widget {
+    grid-column: span 12;
+  }
+}
+
+/* Widget List in Customization Modal */
+.widget-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--sp-2);
+  transition: all var(--transition-fast);
+}
+
+.widget-list-item:hover {
+  border-color: var(--border-hover);
+  background: var(--bg-hover);
+}
+
+.widget-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* ===== TASKS COLUMNS ===== */
+.tasks-columns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-5);
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .tasks-columns {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .tasks-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.task-column {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+  overflow: hidden;
+}
+
+.task-column-header {
+  padding: var(--sp-4) var(--sp-4) var(--sp-3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.task-column-header h3 {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.task-column-count {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-tertiary);
+  background: var(--bg-tertiary);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.task-column-body {
+  padding: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  flex: 1;
+  overflow-y: auto;
+  max-height: 65vh;
+}
+
+/* Column: Daily — strongest visual weight */
+.task-column--daily {
+  border-color: var(--accent-glow);
+  box-shadow: 0 0 16px var(--accent-subtle);
+}
+
+.task-column--daily .task-column-header {
+  background: var(--accent-subtle);
+  border-bottom-color: var(--accent-glow);
+}
+
+.task-column--daily .task-column-header h3 {
+  color: var(--accent-hover);
+}
+
+/* Column: Scheduled — muted */
+.task-column--scheduled {
+  opacity: 0.75;
+  border-style: dashed;
+}
+
+.task-column--scheduled:hover {
+  opacity: 0.9;
+}
+
+/* Task card inside columns */
+.task-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--sp-2) var(--sp-3);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  cursor: default;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.task-card:hover {
+  border-color: var(--border-hover);
+  background: var(--bg-hover);
+}
+
+.task-card--dragging {
+  opacity: 0.4;
+}
+
+/* ===== PROJECTS ===== */
+.project-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.project-card:hover {
+  border-color: var(--border-hover);
+}
+
+.project-card-header {
+  padding: var(--sp-4) var(--sp-5);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.project-card-header:hover {
+  background: var(--bg-hover);
+}
+
+.project-card-body {
+  padding: 0 var(--sp-5) var(--sp-4);
+  border-top: 1px solid var(--border-soft);
+}
+
+.subtask-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: var(--fs-base);
+}
+
+.subtask-item:last-child {
+  border-bottom: none;
+}
+
+.subtask-item--completed span {
+  text-decoration: line-through;
+  color: var(--text-tertiary);
+}
+
 /* ===== BUTTONS ===== */
 .btn {
   display: inline-flex;
@@ -622,6 +832,82 @@ img { max-width: 100%; display: block; }
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes staggerFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ===== PAGE TRANSITION — Staggered children ===== */
+.page-container > .card,
+.page-container > .grid,
+.page-container > .stat-card,
+.page-container > .dashboard-grid,
+.page-container > .filter-bar,
+.page-container > .tabs {
+  animation: staggerFadeUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.page-container > :nth-child(2) { animation-delay: 0.08s; }
+.page-container > :nth-child(3) { animation-delay: 0.14s; }
+.page-container > :nth-child(4) { animation-delay: 0.2s; }
+.page-container > :nth-child(5) { animation-delay: 0.25s; }
+.page-container > :nth-child(6) { animation-delay: 0.3s; }
+.page-container > :nth-child(7) { animation-delay: 0.34s; }
+.page-container > :nth-child(8) { animation-delay: 0.38s; }
+.page-container > :nth-child(9) { animation-delay: 0.42s; }
+.page-container > :nth-child(10) { animation-delay: 0.45s; }
+
+/* Dashboard widgets get their own stagger */
+.dashboard-grid > .dashboard-widget {
+  animation: staggerFadeUp 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.dashboard-grid > .dashboard-widget:nth-child(1) { animation-delay: 0.1s; }
+.dashboard-grid > .dashboard-widget:nth-child(2) { animation-delay: 0.16s; }
+.dashboard-grid > .dashboard-widget:nth-child(3) { animation-delay: 0.22s; }
+.dashboard-grid > .dashboard-widget:nth-child(4) { animation-delay: 0.28s; }
+.dashboard-grid > .dashboard-widget:nth-child(5) { animation-delay: 0.33s; }
+.dashboard-grid > .dashboard-widget:nth-child(6) { animation-delay: 0.38s; }
+.dashboard-grid > .dashboard-widget:nth-child(7) { animation-delay: 0.42s; }
+
+/* Grid children stagger (stat cards, chart cards) */
+.grid > .card,
+.grid > .stat-card {
+  animation: staggerFadeUp 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.grid > :nth-child(1) { animation-delay: 0.08s; }
+.grid > :nth-child(2) { animation-delay: 0.14s; }
+.grid > :nth-child(3) { animation-delay: 0.2s; }
+.grid > :nth-child(4) { animation-delay: 0.26s; }
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .page-container,
+  .page-header,
+  .page-container > *,
+  .dashboard-grid > .dashboard-widget,
+  .grid > .card,
+  .grid > .stat-card {
+    animation: none !important;
+  }
 }
 
 /* ===== BADGES ===== */

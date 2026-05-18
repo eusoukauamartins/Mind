@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../contexts/AppContext';
-import { Download, Upload, FileText, FileJson, Calendar, CheckSquare, DollarSign, Lightbulb, FlaskConical, ClipboardList, BarChart3, Dumbbell, Trash2, Palette, Check, RefreshCw, Database } from 'lucide-react';
+import Modal from '../components/Modal';
+import { Download, Upload, FileText, FileJson, Calendar, CheckSquare, DollarSign, Lightbulb, FlaskConical, ClipboardList, BarChart3, Dumbbell, Trash2, Palette, Check, RefreshCw, Database, Layers } from 'lucide-react';
 import { db } from '../data/db';
 import { clearDemoData, loadDemoData } from '../data/seed';
 
@@ -14,6 +15,16 @@ const modules = [
   { key: 'timeAllocations', label: 'Alocação de Tempo', icon: Calendar, stateKey: 'timeAllocations' },
   { key: 'workoutRoutines', label: 'Rotinas de Treino', icon: Dumbbell, stateKey: 'workoutRoutines' },
   { key: 'workoutLogs', label: 'Logs de Treino', icon: Dumbbell, stateKey: 'workoutLogs' },
+  { key: 'projects', label: 'Projetos', icon: CheckSquare, stateKey: 'projects' },
+];
+
+// Modules allowed for complementary import
+const mergeableModules = [
+  { key: 'learnings', label: 'Aprendizados', icon: Lightbulb, stateKey: 'learnings' },
+  { key: 'experiments', label: 'Experimentos', icon: FlaskConical, stateKey: 'experiments' },
+  { key: 'weeklyReviews', label: 'Revisões Semanais', icon: ClipboardList, stateKey: 'weeklyReviews' },
+  { key: 'dailyCheckIns', label: 'Check-ins Diários', icon: BarChart3, stateKey: 'dailyCheckIns' },
+  { key: 'timeAllocations', label: 'Alocação de Tempo', icon: Calendar, stateKey: 'timeAllocations' },
 ];
 
 // CSV column mappings for readable pt-BR export
@@ -97,6 +108,7 @@ export default function Config() {
   const [dateStart, setDateStart] = useState('');
   const [dateEnd, setDateEnd] = useState('');
   const [showConfirmClear, setShowConfirmClear] = useState(false);
+  const [mergePreview, setMergePreview] = useState(null); // { summary: [...], rawData, fileName }
 
   // Theme state
   const [currentMode, setCurrentMode] = useState('dark');
@@ -243,6 +255,102 @@ export default function Config() {
     clearDemoData();
     appState.refreshAll();
     setShowConfirmClear(false);
+  };
+
+  // ===== Complementary Import =====
+  const handleMergeImportFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target.result);
+
+        if (!data._metadata || (data._metadata.app !== 'Personal Performance OS' && data._metadata.app !== 'Lyria')) {
+          alert('Arquivo inválido. O arquivo selecionado não é um backup válido do Lyria.');
+          e.target.value = '';
+          return;
+        }
+
+        // Build merge preview
+        const summary = [];
+        mergeableModules.forEach(mod => {
+          const incoming = data[mod.key];
+          if (!incoming || !Array.isArray(incoming) || incoming.length === 0) {
+            summary.push({ key: mod.key, label: mod.label, found: 0, newItems: 0, duplicates: 0 });
+            return;
+          }
+
+          const current = appState[mod.stateKey] || [];
+          const currentIds = new Set(current.map(item => item.id).filter(Boolean));
+
+          let newItems = 0;
+          let duplicates = 0;
+          incoming.forEach(item => {
+            if (item.id && currentIds.has(item.id)) {
+              duplicates++;
+            } else {
+              // Secondary check by date+content for items without reliable IDs
+              const isDuplicate = current.some(existing => {
+                if (mod.key === 'learnings') return existing.date === item.date && existing.content === item.content;
+                if (mod.key === 'experiments') return existing.date === item.date && existing.title === item.title;
+                if (mod.key === 'weeklyReviews') return existing.weekRef === item.weekRef;
+                if (mod.key === 'dailyCheckIns') return existing.date === item.date;
+                if (mod.key === 'timeAllocations') return existing.date === item.date && existing.category === item.category && existing.hours === item.hours;
+                return false;
+              });
+              if (isDuplicate) duplicates++;
+              else newItems++;
+            }
+          });
+
+          summary.push({ key: mod.key, label: mod.label, found: incoming.length, newItems, duplicates });
+        });
+
+        setMergePreview({ summary, rawData: data, fileName: file.name });
+      } catch (err) {
+        alert('Erro ao ler o arquivo JSON. Ele pode estar corrompido ou mal formatado.');
+      }
+      e.target.value = '';
+    };
+    reader.readAsText(file);
+  };
+
+  const handleConfirmMerge = () => {
+    if (!mergePreview) return;
+    const { rawData } = mergePreview;
+
+    mergeableModules.forEach(mod => {
+      const incoming = rawData[mod.key];
+      if (!incoming || !Array.isArray(incoming) || incoming.length === 0) return;
+
+      const current = appState[mod.stateKey] || [];
+      const currentIds = new Set(current.map(item => item.id).filter(Boolean));
+
+      const toAdd = incoming.filter(item => {
+        if (item.id && currentIds.has(item.id)) return false;
+        const isDuplicate = current.some(existing => {
+          if (mod.key === 'learnings') return existing.date === item.date && existing.content === item.content;
+          if (mod.key === 'experiments') return existing.date === item.date && existing.title === item.title;
+          if (mod.key === 'weeklyReviews') return existing.weekRef === item.weekRef;
+          if (mod.key === 'dailyCheckIns') return existing.date === item.date;
+          if (mod.key === 'timeAllocations') return existing.date === item.date && existing.category === item.category && existing.hours === item.hours;
+          return false;
+        });
+        return !isDuplicate;
+      });
+
+      if (toAdd.length > 0) {
+        const merged = [...current, ...toAdd];
+        db.set(mod.stateKey, merged);
+      }
+    });
+
+    appState.refreshAll();
+    const totalNew = mergePreview.summary.reduce((s, m) => s + m.newItems, 0);
+    setMergePreview(null);
+    alert(`Importação complementar concluída! ${totalNew} novo(s) registro(s) adicionado(s).`);
   };
 
   const getModuleCount = (key) => {
@@ -416,8 +524,76 @@ export default function Config() {
               <input type="file" accept=".json" onChange={handleImport} style={{ display: 'none' }} />
             </label>
           </div>
+
+          {/* Complementary Import */}
+          <div className="card" style={{ border: '1px solid var(--accent-glow)' }}>
+            <div className="card-header">
+              <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
+                <Layers size={16} style={{ color: 'var(--accent)' }} /> Importar Complemento
+              </span>
+            </div>
+            <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)', marginBottom: 'var(--sp-3)' }}>
+              Adicione dados de outro dispositivo sem apagar os atuais. Apenas módulos de conhecimento e revisão serão importados.
+            </p>
+            <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-tertiary)', marginBottom: 'var(--sp-4)', display: 'flex', flexWrap: 'wrap', gap: 'var(--sp-1)' }}>
+              {mergeableModules.map(m => (
+                <span key={m.key} className="badge badge-accent" style={{ fontSize: '10px' }}>{m.label}</span>
+              ))}
+            </div>
+            <label className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', cursor: 'pointer' }}>
+              <Layers size={16} /> Selecionar Backup para Complementar
+              <input type="file" accept=".json" onChange={handleMergeImportFile} style={{ display: 'none' }} />
+            </label>
+          </div>
         </div>
       </div>
+
+      {/* Merge Preview Modal */}
+      {mergePreview && (
+        <Modal title="Importação Complementar" onClose={() => setMergePreview(null)}>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--sp-4)' }}>
+            Arquivo: <strong style={{ color: 'var(--text-primary)' }}>{mergePreview.fileName}</strong>
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', marginBottom: 'var(--sp-5)' }}>
+            {/* Table header */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px 100px', gap: 'var(--sp-2)', padding: '0 var(--sp-2)', fontSize: 'var(--fs-xs)', color: 'var(--text-tertiary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              <span>Módulo</span>
+              <span style={{ textAlign: 'center' }}>Encontrados</span>
+              <span style={{ textAlign: 'center' }}>Novos</span>
+              <span style={{ textAlign: 'center' }}>Duplicados</span>
+            </div>
+
+            {mergePreview.summary.map(row => (
+              <div key={row.key} style={{
+                display: 'grid', gridTemplateColumns: '1fr 80px 80px 100px', gap: 'var(--sp-2)',
+                padding: 'var(--sp-2) var(--sp-2)',
+                background: row.newItems > 0 ? 'var(--accent-subtle)' : 'var(--bg-tertiary)',
+                borderRadius: 'var(--radius-md)', fontSize: 'var(--fs-sm)',
+              }}>
+                <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{row.label}</span>
+                <span style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>{row.found}</span>
+                <span style={{ textAlign: 'center', fontWeight: 600, color: row.newItems > 0 ? 'var(--success)' : 'var(--text-tertiary)' }}>{row.newItems}</span>
+                <span style={{ textAlign: 'center', color: row.duplicates > 0 ? 'var(--warning)' : 'var(--text-tertiary)' }}>{row.duplicates}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Summary */}
+          <div style={{ background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--sp-3) var(--sp-4)', marginBottom: 'var(--sp-4)', display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-sm)' }}>
+            <span style={{ color: 'var(--text-secondary)' }}>Total de novos registros:</span>
+            <span style={{ fontWeight: 700, color: 'var(--accent)' }}>{mergePreview.summary.reduce((s, m) => s + m.newItems, 0)}</span>
+          </div>
+
+          <div className="form-actions">
+            <button className="btn btn-secondary" onClick={() => setMergePreview(null)}>Cancelar</button>
+            <button className="btn btn-primary" onClick={handleConfirmMerge}
+              disabled={mergePreview.summary.reduce((s, m) => s + m.newItems, 0) === 0}>
+              Confirmar Importação Complementar
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

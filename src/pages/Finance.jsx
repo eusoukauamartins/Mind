@@ -26,6 +26,11 @@ export default function Finance() {
   const [historyFilter, setHistoryFilter] = useState({ period: '7 dias', start: '', end: '' });
   const [initialBalance, setInitialBalance] = useState(() => parseFloat(localStorage.getItem('cp_initial_balance') || '0'));
   const [showBalanceHistory, setShowBalanceHistory] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(20);
+
+  useEffect(() => {
+    setVisibleCount(20);
+  }, [dateFilter]);
 
   const handleUpdateInitialBalance = (e) => {
     e.stopPropagation();
@@ -372,7 +377,7 @@ export default function Finance() {
             action={<button className="btn btn-primary" onClick={() => setShowModal(true)}><Plus size={16} /> Novo Lançamento</button>} />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {filtered.slice(0, 20).map(entry => (
+            {filtered.slice(0, visibleCount).map(entry => (
               <div key={entry.id} style={{
                 display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', padding: 'var(--sp-3) 0',
                 borderBottom: '1px solid var(--border)',
@@ -397,6 +402,13 @@ export default function Finance() {
                 <button className="btn-icon btn-ghost" onClick={() => deleteItem('finance', entry.id)} style={{ color: 'var(--danger)' }}><Trash2 size={14} /></button>
               </div>
             ))}
+            {filtered.length > visibleCount && (
+              <div style={{ padding: 'var(--sp-4)', textAlign: 'center', borderTop: '1px solid var(--border)' }}>
+                <button className="btn btn-secondary" onClick={() => setVisibleCount(v => v + 20)}>
+                  Ver mais transações
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
