@@ -66,15 +66,7 @@ const csvMappings = {
   },
 };
 
-const accents = [
-  { id: 'purple', name: 'Roxo', color: '#6c5ce7' },
-  { id: 'rosa', name: 'Rosa (Novo)', color: '#ec4899' },
-  { id: 'green', name: 'Verde', color: '#10b981' },
-  { id: 'red', name: 'Vermelho', color: '#dc2626' },
-  { id: 'blue', name: 'Azul', color: '#3b82f6' },
-  { id: 'gold', name: 'Dourado', color: '#d97706' },
-  { id: 'gray', name: 'Cinza', color: '#6b7280' },
-];
+
 
 const premiumAccents = [
   { id: 'purple-premium', name: 'Roxo Premium', color: 'linear-gradient(135deg, #8b5cf6, #4c1d95)' },
@@ -121,19 +113,25 @@ export default function Config() {
 
   // Theme state
   const [currentMode, setCurrentMode] = useState('dark');
-  const [currentAccent, setCurrentAccent] = useState('purple');
+  const [currentAccent, setCurrentAccent] = useState('purple-premium');
 
   useEffect(() => {
     // Migration logic for old theme strings (e.g. "dark-purple")
     const legacyTheme = localStorage.getItem('cp_theme');
     let mode = localStorage.getItem('cp_mode') || 'dark';
-    let accent = localStorage.getItem('cp_accent') || 'purple';
+    let accent = localStorage.getItem('cp_accent') || 'purple-premium';
 
     if (legacyTheme && legacyTheme.startsWith('dark-')) {
       mode = 'dark';
       accent = legacyTheme.split('dark-')[1];
       localStorage.removeItem('cp_theme');
       localStorage.setItem('cp_mode', mode);
+      localStorage.setItem('cp_accent', accent);
+    }
+
+    // Force accent migration if it's solid color
+    if (accent && !accent.endsWith('-premium')) {
+      accent = `${accent}-premium`;
       localStorage.setItem('cp_accent', accent);
     }
 

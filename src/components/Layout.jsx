@@ -63,13 +63,21 @@ export default function Layout({ children }) {
   const appState = useApp();
 
   useEffect(() => {
+    // Migrate cp_theme
     let savedTheme = localStorage.getItem('cp_theme') || 'dark-purple-premium';
-    // Migrate old solid colors to premium gradient variants
     if (savedTheme && !savedTheme.includes('-premium')) {
       savedTheme = `${savedTheme}-premium`;
       localStorage.setItem('cp_theme', savedTheme);
     }
     document.documentElement.setAttribute('data-theme', savedTheme);
+
+    // Migrate cp_accent
+    let savedAccent = localStorage.getItem('cp_accent') || 'purple-premium';
+    if (savedAccent && !savedAccent.endsWith('-premium')) {
+      savedAccent = `${savedAccent}-premium`;
+      localStorage.setItem('cp_accent', savedAccent);
+    }
+    document.documentElement.setAttribute('data-accent', savedAccent);
   }, []);
 
 

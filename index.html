@@ -14,14 +14,22 @@
         try {
           var mode = localStorage.getItem('cp_mode') || 'dark';
           var accent = localStorage.getItem('cp_accent');
+          
           if (!accent) {
             var legacy = localStorage.getItem('cp_theme');
             if (legacy && legacy.startsWith('dark-')) {
               accent = legacy.split('dark-')[1];
             } else {
-              accent = 'purple';
+              accent = 'purple-premium';
             }
           }
+          
+          // Force migration if accent is a solid color
+          if (accent && !accent.endsWith('-premium')) {
+            accent = accent + '-premium';
+            localStorage.setItem('cp_accent', accent);
+          }
+          
           document.documentElement.setAttribute('data-mode', mode);
           document.documentElement.setAttribute('data-accent', accent);
         } catch (e) {}
