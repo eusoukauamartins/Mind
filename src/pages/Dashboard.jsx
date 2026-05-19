@@ -180,11 +180,28 @@ export default function Dashboard() {
     // Pending tasks
     const pendingTasks = tasks.filter(t => !isTaskCompleted(t)).length;
 
-    // Focus: Top 3 active tasks based on manual order
-    const activeOverall = tasks
-      .filter(t => t.status !== 'excluída' && !isTaskCompleted(t))
-      .sort((a, b) => (a.order || 0) - (b.order || 0));
-    const topFocusTasks = activeOverall.slice(0, 3);
+    // Focus: Top 3 strategic tasks — excludes recurring routines (diária/semanal)
+    const priorityWeight = { alta: 0, média: 1, baixa: 2 };
+    const focusCandidates = tasks
+      .filter(t =>
+        t.status !== 'excluída' &&
+        !isTaskCompleted(t) &&
+        t.recurrence !== 'diária' &&
+        t.recurrence !== 'semanal'
+      )
+      .sort((a, b) => {
+        // 1. Priority (alta first)
+        const pa = priorityWeight[a.priority] ?? 1;
+        const pb = priorityWeight[b.priority] ?? 1;
+        if (pa !== pb) return pa - pb;
+        // 2. Due date (closest first, no date = last)
+        const da = a.dueDate || '9999-12-31';
+        const db = b.dueDate || '9999-12-31';
+        if (da !== db) return da.localeCompare(db);
+        // 3. Manual order
+        return (a.order || 0) - (b.order || 0);
+      });
+    const topFocusTasks = focusCandidates.slice(0, 3);
 
     // Week chart data (last 7 days)
     const weekChartData = [];
