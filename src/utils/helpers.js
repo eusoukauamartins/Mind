@@ -30,8 +30,15 @@ export function formatPercent(value) {
   return `${Math.round(value || 0)}%`;
 }
 
+export function toLocalISODate(date = new Date()) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 export function getToday() {
-  return new Date().toISOString().split('T')[0];
+  return toLocalISODate(new Date());
 }
 
 export function getWeekDates(date = new Date()) {
@@ -42,8 +49,8 @@ export function getWeekDates(date = new Date()) {
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
   return {
-    start: monday.toISOString().split('T')[0],
-    end: sunday.toISOString().split('T')[0],
+    start: toLocalISODate(monday),
+    end: toLocalISODate(sunday),
   };
 }
 
@@ -130,13 +137,13 @@ export function calcDailyScore(tasks, checkIn, timeAllocations) {
 // Recurring Tasks Helpers
 export function getTaskPeriodKey(task, date = new Date()) {
   if (task.recurrence === 'diária') {
-    return date.toISOString().split('T')[0]; // YYYY-MM-DD
+    return toLocalISODate(date); // YYYY-MM-DD local
   }
   if (task.recurrence === 'semanal') {
-    return getWeekRef(date); // YYYY-Sxx
+    return getWeekRef(date); // YYYY-Sxx local
   }
   if (task.recurrence === 'mensal') {
-    return date.toISOString().substring(0, 7); // YYYY-MM
+    return toLocalISODate(date).substring(0, 7); // YYYY-MM local
   }
   return '';
 }

@@ -13,6 +13,7 @@
     "vite": "^8.0.1"
   },
   "dependencies": {
+    "@hello-pangea/dnd": "^18.0.1",
     "date-fns": "^4.1.0",
     "lucide-react": "^1.7.0",
     "react-router-dom": "^7.14.0",

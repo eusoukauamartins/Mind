@@ -8,6 +8,7 @@ import {
 import { useState, useEffect } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { ErrorBoundary } from './ErrorBoundary';
+import LyriaDailyQuotePopup from './LyriaDailyQuotePopup';
 
 const LyriaIcon = ({ size = 24 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -18,38 +19,42 @@ const LyriaIcon = ({ size = 24 }) => (
 );
 
 const navGroups = [
-  // 1
-  [
-    { to: '/', icon: LayoutDashboard, label: 'Dashboard' }
-  ],
-  // 2
-  [
-    { to: '/tarefas', icon: CheckSquare, label: 'Tarefas' },
-    { to: '/projetos', icon: FolderKanban, label: 'Projetos' },
-    { to: '/calendario', icon: Calendar, label: 'Calendário' }
-  ],
-  // 3
-  [
-    { to: '/financas', icon: DollarSign, label: 'Finanças' },
-    { to: '/desempenho', icon: BarChart3, label: 'Desempenho' },
-    { to: '/revisao', icon: ClipboardList, label: 'Revisão Semanal' }
-  ],
-  // 4
-  [
-    { to: '/aprendizados', icon: Lightbulb, label: 'Aprendizados' },
-    { to: '/experimentos', icon: FlaskConical, label: 'Experimentos' }
-  ],
-  // 5
-  [
-    { to: '/treino', icon: Dumbbell, label: 'Treino' }
-  ],
-  // 6
-  [
-    { to: '/configuracoes', icon: Settings, label: 'Configurações' }
-  ]
+  {
+    label: '',
+    items: [ { to: '/', icon: LayoutDashboard, label: 'Dashboard' } ]
+  },
+  {
+    label: 'Execução',
+    items: [
+      { to: '/tarefas', icon: CheckSquare, label: 'Tarefas' },
+      { to: '/projetos', icon: FolderKanban, label: 'Projetos' },
+      { to: '/calendario', icon: Calendar, label: 'Calendário' }
+    ]
+  },
+  {
+    label: 'Conhecimento',
+    items: [
+      { to: '/aprendizados', icon: Lightbulb, label: 'Aprendizados' },
+      { to: '/experimentos', icon: FlaskConical, label: 'Experimentos' }
+    ]
+  },
+  {
+    label: 'Análise',
+    items: [
+      { to: '/financas', icon: DollarSign, label: 'Finanças' },
+      { to: '/desempenho', icon: BarChart3, label: 'Desempenho' },
+      { to: '/revisao', icon: ClipboardList, label: 'Revisão Semanal' }
+    ]
+  },
+  {
+    label: 'Outros',
+    items: [
+      { to: '/treino', icon: Dumbbell, label: 'Treino' }
+    ]
+  }
 ];
 
-const mobileNavItems = navGroups.flat().slice(0, 5);
+const mobileNavItems = navGroups.flatMap(g => g.items).slice(0, 5);
 
 export default function Layout({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -58,7 +63,12 @@ export default function Layout({ children }) {
   const appState = useApp();
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem('cp_theme') || 'dark-purple';
+    let savedTheme = localStorage.getItem('cp_theme') || 'dark-purple-premium';
+    // Migrate old solid colors to premium gradient variants
+    if (savedTheme && !savedTheme.includes('-premium')) {
+      savedTheme = `${savedTheme}-premium`;
+      localStorage.setItem('cp_theme', savedTheme);
+    }
     document.documentElement.setAttribute('data-theme', savedTheme);
   }, []);
 
@@ -66,6 +76,12 @@ export default function Layout({ children }) {
 
   return (
     <div className="app-layout">
+      {/* Premium Atmospheric Background */}
+      <div className="atmospheric-container">
+        <div className="atmospheric-glow-1" />
+        <div className="atmospheric-glow-2" />
+      </div>
+
       {/* Mobile Header */}
       <div className="mobile-header">
         <button className="btn-icon" onClick={() => setMobileOpen(!mobileOpen)}>
@@ -128,10 +144,27 @@ export default function Layout({ children }) {
             </button>
           )}
         </div>
-        <nav className="sidebar-nav">
+        <nav className="sidebar-nav" style={{ display: 'flex', flexDirection: 'column', flex: 1, paddingBottom: 'var(--sp-4)' }}>
           {navGroups.map((group, index) => (
             <div key={`group-${index}`} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)' }}>
-              {group.map(item => (
+              {group.label && !collapsed && (
+                <div style={{ 
+                  fontSize: '10px', 
+                  fontWeight: 600, 
+                  color: 'var(--text-tertiary)', 
+                  textTransform: 'uppercase', 
+                  letterSpacing: '0.05em', 
+                  padding: 'var(--sp-4) var(--sp-4) var(--sp-2) var(--sp-4)',
+                  opacity: 0.6
+                }}>
+                  {group.label}
+                </div>
+              )}
+              {group.label && collapsed && (
+                <div style={{ height: 1, background: 'var(--border-soft)', margin: 'var(--sp-4) var(--sp-2)', opacity: 0.3 }} />
+              )}
+              
+              {group.items.map(item => (
                 <NavLink
                   key={item.to}
                   to={item.to}
@@ -143,11 +176,19 @@ export default function Layout({ children }) {
                   {!collapsed && <span style={{ marginLeft: 'var(--sp-1)' }}>{item.label}</span>}
                 </NavLink>
               ))}
-              {index < navGroups.length - 1 && (
-                <div style={{ height: 1, background: 'var(--border-soft)', margin: collapsed ? 'var(--sp-3) var(--sp-1)' : 'var(--sp-3)', opacity: 0.5 }} />
-              )}
             </div>
           ))}
+
+          <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', opacity: 0.8 }}>
+            <NavLink
+              to="/configuracoes"
+              className={({ isActive }) => isActive ? 'active' : ''}
+              onClick={() => setMobileOpen(false)}
+            >
+              <Settings size={20} style={{ minWidth: 20 }} />
+              {!collapsed && <span style={{ marginLeft: 'var(--sp-1)' }}>Configurações</span>}
+            </NavLink>
+          </div>
         </nav>
 
       </aside>
@@ -198,6 +239,9 @@ export default function Layout({ children }) {
           onClick={() => setMobileOpen(false)}
         />
       )}
+
+      {/* Lyria Daily Quote Popup */}
+      <LyriaDailyQuotePopup />
     </div>
   );
 }

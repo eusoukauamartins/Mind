@@ -65,26 +65,22 @@ export default function Finance() {
     // By category
     const categoryMap = {};
     filtered.forEach(f => {
-      const key = f.category || 'Sem Categoria';
-      if (!categoryMap[key]) categoryMap[key] = { name: key, value: 0, type: f.type };
+      const baseKey = f.category || 'Sem Categoria';
+      const key = `${baseKey}-${f.type}`;
+      if (!categoryMap[key]) categoryMap[key] = { name: baseKey, value: 0, type: f.type };
       categoryMap[key].value += f.amount;
     });
     const categoryData = Object.values(categoryMap).sort((a, b) => b.value - a.value);
 
     // By source
     const sourceMap = {};
-    filtered.filter(f => f.type === 'entrada').forEach(f => {
-      const key = f.source || 'outro';
-      if (!sourceMap[key]) sourceMap[key] = { name: key, receita: 0 };
-      sourceMap[key].receita += f.amount;
+    filtered.forEach(f => {
+      const baseKey = f.source || 'Outro';
+      const key = `${baseKey}-${f.type}`;
+      if (!sourceMap[key]) sourceMap[key] = { name: baseKey, value: 0, type: f.type };
+      sourceMap[key].value += f.amount;
     });
-    filtered.filter(f => f.type === 'saída').forEach(f => {
-      const key = f.source || 'outro';
-      if (!sourceMap[key]) sourceMap[key] = { name: key, receita: 0 };
-      if (!sourceMap[key].despesa) sourceMap[key].despesa = 0;
-      sourceMap[key].despesa += f.amount;
-    });
-    const sourceData = Object.values(sourceMap).sort((a, b) => b.receita - a.receita);
+    const sourceData = Object.values(sourceMap).sort((a, b) => b.value - a.value);
 
     // Filtered Expense Class
     const expenseClassMap = {};
@@ -280,50 +276,199 @@ export default function Finance() {
         <div className="card">
           <div className="card-header"><span className="card-title">Por Categoria</span></div>
           {metrics.categoryData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={metrics.categoryData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" paddingAngle={3}>
-                  {metrics.categoryData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Pie>
-                <Tooltip contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
-                  formatter={(v) => formatCurrency(v)} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-              </PieChart>
-            </ResponsiveContainer>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)', padding: 'var(--sp-2) 0', maxHeight: 260, overflowY: 'auto' }}>
+              {(() => {
+                const incomeCategories = metrics.categoryData.filter(c => c.type === 'entrada');
+                const expenseCategories = metrics.categoryData.filter(c => c.type === 'saída');
+                
+                const totalIncome = incomeCategories.reduce((s, c) => s + c.value, 0);
+                const totalExpense = expenseCategories.reduce((s, c) => s + c.value, 0);
+
+                const maxIncome = incomeCategories.length > 0 ? Math.max(...incomeCategories.map(c => c.value)) : 0;
+                const maxExpense = expenseCategories.length > 0 ? Math.max(...expenseCategories.map(c => c.value)) : 0;
+
+                return (
+                  <>
+                    {/* Receitas Group */}
+                    <div>
+                      <div style={{ fontSize: 'var(--fs-xs)', fontWeight: 700, color: 'var(--income)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 'var(--sp-2)', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Receitas</span>
+                        <span>{formatCurrency(totalIncome)}</span>
+                      </div>
+                      
+                      {incomeCategories.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
+                          {incomeCategories.map((item, i) => (
+                            <div key={`inc-${i}`} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-sm)', alignItems: 'center' }}>
+                                <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{item.name}</span>
+                                <div style={{ display: 'flex', gap: 'var(--sp-2)' }}>
+                                  <span style={{ color: 'var(--income)', fontWeight: 600 }}>{formatCurrency(item.value)}</span>
+                                  <span style={{ color: 'var(--text-tertiary)', width: '36px', textAlign: 'right' }}>{totalIncome > 0 ? Math.round((item.value / totalIncome) * 100) : 0}%</span>
+                                </div>
+                              </div>
+                              <div style={{ width: '100%', height: 6, background: 'var(--bg-tertiary)', borderRadius: 3, overflow: 'hidden' }}>
+                                <div style={{ width: `${maxIncome > 0 ? (item.value / maxIncome) * 100 : 0}%`, height: '100%', background: 'var(--income)', borderRadius: 3 }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-tertiary)', padding: 'var(--sp-1) 0' }}>Sem receitas no período</p>
+                      )}
+                    </div>
+
+                    <div style={{ height: 1, background: 'var(--border-soft)', margin: 'var(--sp-1) 0' }} />
+
+                    {/* Despesas Group */}
+                    <div>
+                      <div style={{ fontSize: 'var(--fs-xs)', fontWeight: 700, color: 'var(--expense)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 'var(--sp-2)', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Despesas</span>
+                        <span>{formatCurrency(totalExpense)}</span>
+                      </div>
+
+                      {expenseCategories.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
+                          {expenseCategories.map((item, i) => (
+                            <div key={`exp-${i}`} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-sm)', alignItems: 'center' }}>
+                                <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{item.name}</span>
+                                <div style={{ display: 'flex', gap: 'var(--sp-2)' }}>
+                                  <span style={{ color: 'var(--expense)', fontWeight: 600 }}>{formatCurrency(item.value)}</span>
+                                  <span style={{ color: 'var(--text-tertiary)', width: '36px', textAlign: 'right' }}>{totalExpense > 0 ? Math.round((item.value / totalExpense) * 100) : 0}%</span>
+                                </div>
+                              </div>
+                              <div style={{ width: '100%', height: 6, background: 'var(--bg-tertiary)', borderRadius: 3, overflow: 'hidden' }}>
+                                <div style={{ width: `${maxExpense > 0 ? (item.value / maxExpense) * 100 : 0}%`, height: '100%', background: 'var(--expense)', borderRadius: 3 }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-tertiary)', padding: 'var(--sp-1) 0' }}>Sem despesas no período</p>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
           ) : <p className="text-secondary text-sm" style={{ padding: 'var(--sp-8)', textAlign: 'center' }}>Sem dados para exibir</p>}
         </div>
 
         <div className="card">
           <div className="card-header"><span className="card-title">Por Fonte / Atividade</span></div>
           {metrics.sourceData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={metrics.sourceData} layout="vertical">
-                <XAxis type="number" hide />
-                <YAxis type="category" dataKey="name" width={80} tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
-                  formatter={(v) => formatCurrency(v)} />
-                <Bar dataKey="receita" fill="var(--income)" radius={[0, 4, 4, 0]} name="Receita" />
-              </BarChart>
-            </ResponsiveContainer>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)', padding: 'var(--sp-2) 0', maxHeight: 260, overflowY: 'auto' }}>
+              {(() => {
+                const incomeSources = metrics.sourceData.filter(c => c.type === 'entrada');
+                const expenseSources = metrics.sourceData.filter(c => c.type === 'saída');
+                
+                const totalIncome = incomeSources.reduce((s, c) => s + c.value, 0);
+                const totalExpense = expenseSources.reduce((s, c) => s + c.value, 0);
+
+                const maxIncome = incomeSources.length > 0 ? Math.max(...incomeSources.map(c => c.value)) : 0;
+                const maxExpense = expenseSources.length > 0 ? Math.max(...expenseSources.map(c => c.value)) : 0;
+
+                return (
+                  <>
+                    {/* Receitas Group */}
+                    <div>
+                      <div style={{ fontSize: 'var(--fs-xs)', fontWeight: 700, color: 'var(--income)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 'var(--sp-2)', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Receitas</span>
+                        <span>{formatCurrency(totalIncome)}</span>
+                      </div>
+                      
+                      {incomeSources.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
+                          {incomeSources.map((item, i) => (
+                            <div key={`src-inc-${i}`} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-sm)', alignItems: 'center' }}>
+                                <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{item.name}</span>
+                                <div style={{ display: 'flex', gap: 'var(--sp-2)' }}>
+                                  <span style={{ color: 'var(--income)', fontWeight: 600 }}>{formatCurrency(item.value)}</span>
+                                  <span style={{ color: 'var(--text-tertiary)', width: '36px', textAlign: 'right' }}>{totalIncome > 0 ? Math.round((item.value / totalIncome) * 100) : 0}%</span>
+                                </div>
+                              </div>
+                              <div style={{ width: '100%', height: 6, background: 'var(--bg-tertiary)', borderRadius: 3, overflow: 'hidden' }}>
+                                <div style={{ width: `${maxIncome > 0 ? (item.value / maxIncome) * 100 : 0}%`, height: '100%', background: 'var(--income)', borderRadius: 3 }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-tertiary)', padding: 'var(--sp-1) 0' }}>Sem receitas no período</p>
+                      )}
+                    </div>
+
+                    <div style={{ height: 1, background: 'var(--border-soft)', margin: 'var(--sp-1) 0' }} />
+
+                    {/* Despesas Group */}
+                    <div>
+                      <div style={{ fontSize: 'var(--fs-xs)', fontWeight: 700, color: 'var(--expense)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 'var(--sp-2)', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Despesas</span>
+                        <span>{formatCurrency(totalExpense)}</span>
+                      </div>
+
+                      {expenseSources.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
+                          {expenseSources.map((item, i) => (
+                            <div key={`src-exp-${i}`} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-sm)', alignItems: 'center' }}>
+                                <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{item.name}</span>
+                                <div style={{ display: 'flex', gap: 'var(--sp-2)' }}>
+                                  <span style={{ color: 'var(--expense)', fontWeight: 600 }}>{formatCurrency(item.value)}</span>
+                                  <span style={{ color: 'var(--text-tertiary)', width: '36px', textAlign: 'right' }}>{totalExpense > 0 ? Math.round((item.value / totalExpense) * 100) : 0}%</span>
+                                </div>
+                              </div>
+                              <div style={{ width: '100%', height: 6, background: 'var(--bg-tertiary)', borderRadius: 3, overflow: 'hidden' }}>
+                                <div style={{ width: `${maxExpense > 0 ? (item.value / maxExpense) * 100 : 0}%`, height: '100%', background: 'var(--expense)', borderRadius: 3 }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-tertiary)', padding: 'var(--sp-1) 0' }}>Sem despesas no período</p>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
           ) : <p className="text-secondary text-sm" style={{ padding: 'var(--sp-8)', textAlign: 'center' }}>Sem dados para exibir</p>}
         </div>
 
-        <div className="card">
-          <div className="card-header"><span className="card-title">Por Classificação do Gasto</span></div>
+        <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+          <div className="card-header"><span className="card-title">Classificação do Gasto</span></div>
           {metrics.expenseClassData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={metrics.expenseClassData} layout="vertical">
-                <XAxis type="number" hide />
-                <YAxis type="category" dataKey="name" width={80} tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
-                  formatter={(v) => formatCurrency(v)} />
-                <Bar dataKey="value" radius={[0, 4, 4, 0]} name="Despesa">
-                  {metrics.expenseClassData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={CLASS_COLORS[entry.name] || '#636e72'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)', padding: 'var(--sp-2) 0' }}>
+                {(() => {
+                  const total = metrics.expenseClassData.reduce((s, c) => s + c.value, 0);
+                  const top = metrics.expenseClassData[0];
+                  return (
+                    <>
+                      {metrics.expenseClassData.map((item, i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: CLASS_COLORS[item.name] || '#636e72' }} />
+                            <span style={{ fontWeight: 500, color: 'var(--text-primary)', fontSize: 'var(--fs-sm)' }}>{item.name}</span>
+                          </div>
+                          <span style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: 'var(--fs-sm)' }}>{total > 0 ? Math.round((item.value / total) * 100) : 0}%</span>
+                        </div>
+                      ))}
+                      
+                      <div style={{ marginTop: 'auto', paddingTop: 'var(--sp-4)' }}>
+                        <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-secondary)', background: 'var(--bg-tertiary)', padding: 'var(--sp-3)', borderRadius: 'var(--radius-md)', lineHeight: 1.5 }}>
+                          <strong style={{ color: 'var(--text-primary)' }}>Visão Operacional:</strong>
+                          <br />
+                          O maior volume de gastos do período foi <strong style={{ color: CLASS_COLORS[top.name] || 'var(--accent)' }}>{top.name}</strong>, representando {total > 0 ? Math.round((top.value / total) * 100) : 0}% das despesas.
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
           ) : <p className="text-secondary text-sm" style={{ padding: 'var(--sp-8)', textAlign: 'center' }}>Não houve saídas registradas</p>}
         </div>
       </div>
@@ -331,8 +476,20 @@ export default function Finance() {
       {/* Daily Comparison Chart */}
       {metrics.dailyComparisons.length > 0 && (
         <div className="card" style={{ marginBottom: 'var(--sp-6)' }}>
-          <div className="card-header"><span className="card-title">Comparativo Diário (Receita vs Despesa)</span></div>
-          <ResponsiveContainer width="100%" height={300}>
+          <div className="card-header" style={{ marginBottom: 'var(--sp-1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--sp-2)' }}>
+            <span className="card-title">Comparativo Diário</span>
+            {(() => {
+              const bestProfitDay = [...metrics.dailyComparisons].sort((a,b) => b.lucro - a.lucro)[0];
+              const highestExpenseDay = [...metrics.dailyComparisons].sort((a,b) => b.despesa - a.despesa)[0];
+              return (
+                <div style={{ display: 'flex', gap: 'var(--sp-4)', fontSize: '11px', color: 'var(--text-secondary)' }}>
+                  {bestProfitDay && bestProfitDay.lucro > 0 && <span>Maior lucro: <strong style={{color: 'var(--success)'}}>{bestProfitDay.label}</strong></span>}
+                  {highestExpenseDay && highestExpenseDay.despesa > 0 && <span>Maior gasto: <strong style={{color: 'var(--danger)'}}>{highestExpenseDay.label}</strong></span>}
+                </div>
+              );
+            })()}
+          </div>
+          <ResponsiveContainer width="100%" height={220}>
             <BarChart data={metrics.dailyComparisons} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-secondary)', fontSize: 12 }} />
               <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} tickFormatter={(v) => `R$ ${v/1000}k`} />

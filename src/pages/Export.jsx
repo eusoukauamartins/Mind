@@ -3,7 +3,6 @@ import { useApp } from '../contexts/AppContext';
 import Modal from '../components/Modal';
 import { Download, Upload, FileText, FileJson, Calendar, CheckSquare, DollarSign, Lightbulb, FlaskConical, ClipboardList, BarChart3, Dumbbell, Trash2, Palette, Check, RefreshCw, Database, Layers } from 'lucide-react';
 import { db } from '../data/db';
-import { clearDemoData, loadDemoData } from '../data/seed';
 
 const modules = [
   { key: 'tasks', label: 'Tarefas', icon: CheckSquare, stateKey: 'tasks' },
@@ -75,6 +74,16 @@ const accents = [
   { id: 'blue', name: 'Azul', color: '#3b82f6' },
   { id: 'gold', name: 'Dourado', color: '#d97706' },
   { id: 'gray', name: 'Cinza', color: '#6b7280' },
+];
+
+const premiumAccents = [
+  { id: 'purple-premium', name: 'Roxo Premium', color: 'linear-gradient(135deg, #8b5cf6, #4c1d95)' },
+  { id: 'rosa-premium', name: 'Rosa Premium', color: 'linear-gradient(135deg, #ec4899, #831843)' },
+  { id: 'green-premium', name: 'Verde Premium', color: 'linear-gradient(135deg, #10b981, #064e3b)' },
+  { id: 'red-premium', name: 'Vermelho Premium', color: 'linear-gradient(135deg, #ef4444, #450a0a)' },
+  { id: 'blue-premium', name: 'Azul Premium', color: 'linear-gradient(135deg, #3b82f6, #1e3a8a)' },
+  { id: 'gold-premium', name: 'Dourado Premium', color: 'linear-gradient(135deg, #f59e0b, #451a03)' },
+  { id: 'gray-premium', name: 'Cinza Premium', color: 'linear-gradient(135deg, #9ca3af, #1f2937)' },
 ];
 
 function escapeCSV(val) {
@@ -150,16 +159,6 @@ export default function Config() {
       db.setInitialized(); // Ensure reseeding never happens alone
       appState.refreshAll();
       alert('Dados apagados com sucesso.');
-    }
-  };
-
-  const handleRestoreDemo = () => {
-    if (window.confirm('Isso apagará seus dados atuais e carregará dados de demonstração. Deseja continuar?')) {
-      db.clearAll();
-      db.clearDemoFlag();
-      loadDemoData(true);
-      appState.refreshAll();
-      alert('Dados de demonstração carregados.');
     }
   };
 
@@ -249,12 +248,6 @@ export default function Config() {
       e.target.value = '';
     };
     reader.readAsText(file);
-  };
-
-  const handleClearDemo = () => {
-    clearDemoData();
-    appState.refreshAll();
-    setShowConfirmClear(false);
   };
 
   // ===== Complementary Import =====
@@ -359,195 +352,178 @@ export default function Config() {
   };
 
   return (
-    <div className="page-container">
+    <div className="page-container" style={{ maxWidth: 900 }}>
       <div className="page-header">
         <h1>Configurações</h1>
         <p>Aparência, backup e gerenciamento de dados do sistema</p>
       </div>
 
-      <div className="grid grid-2" style={{ alignItems: 'flex-start' }}>
-        {/* Appearance Settings */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-6)' }}>
-          <div className="card">
-            <div className="card-header">
-              <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
-                <Palette size={16} /> Fundo e Luminosidade
-              </span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-6)' }}>
+        
+        {/* SECTION 1 — APARÊNCIA */}
+        <div style={{ paddingBottom: 'var(--sp-8)', borderBottom: '1px solid var(--border-soft)' }}>
+          <h3 style={{ fontSize: 'var(--fs-lg)', color: 'var(--text-primary)', marginBottom: 'var(--sp-6)', display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', fontWeight: 600 }}>
+            <Palette size={18} /> Aparência
+          </h3>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 'var(--sp-8)' }}>
+            <div>
+              <label className="form-label" style={{ marginBottom: 'var(--sp-3)' }}>Fundo e Luminosidade</label>
+              <div style={{ display: 'flex', gap: 'var(--sp-2)' }}>
+                <button
+                  className={`btn ${currentMode === 'dark' ? 'btn-primary' : 'btn-ghost'}`}
+                  onClick={() => handleModeChange('dark')}
+                  style={{ flex: 1 }}
+                >
+                  Escuro
+                </button>
+                <button
+                  className={`btn ${currentMode === 'light' ? 'btn-primary' : 'btn-ghost'}`}
+                  onClick={() => handleModeChange('light')}
+                  style={{ flex: 1 }}
+                >
+                  Claro
+                </button>
+              </div>
             </div>
-            <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--sp-4)' }}>
-              Escolha entre o conforto noturno ou o brilho de alta legibilidade.
-            </p>
-            <div style={{ display: 'flex', gap: 'var(--sp-3)' }}>
-              <button
-                key="dark"
-                className={`btn ${currentMode === 'dark' ? 'btn-primary' : 'btn-ghost'}`}
-                onClick={() => handleModeChange('dark')}
-                style={{ flex: 1 }}
-              >
-                Escuro
-              </button>
-              <button
-                key="light"
-                className={`btn ${currentMode === 'light' ? 'btn-primary' : 'btn-ghost'}`}
-                onClick={() => handleModeChange('light')}
-                style={{ flex: 1 }}
-              >
-                Claro
-              </button>
-            </div>
-          </div>
-
-          <div className="card">
-            <div className="card-header">
-              <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
-                <Palette size={16} /> Cor de Destaque
-              </span>
-            </div>
-            <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--sp-4)' }}>
-              Identidade visual do sistema.
-            </p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--sp-3)' }}>
-              {accents.map((accent) => {
-                const isActive = currentAccent === accent.id;
-                return (
-                  <button
-                    key={accent.id}
-                    onClick={() => handleAccentChange(accent.id)}
-                    title={accent.name}
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: '50%',
-                      backgroundColor: accent.color,
-                      border: 'none',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transition: 'all var(--transition-fast)',
-                      boxShadow: isActive ? `0 0 0 3px var(--bg-secondary), 0 0 0 6px ${accent.color}` : 'none',
-                      opacity: isActive ? 1 : 0.7,
-                    }}
-                  >
-                    {isActive && <Check size={20} color="#ffffff" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="card">
-            <div className="card-header">
-              <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
-                <Database size={16} /> Banco de Dados
-              </span>
-            </div>
-            <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--sp-4)' }}>
-              Ações críticas sobre as informações salvas localmente.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' }}>
-              <button className="btn btn-secondary" onClick={handleRestoreDemo} style={{ justifyContent: 'center' }}>
-                <RefreshCw size={16} /> Restaurar Dados de Demo
-              </button>
-              <button className="btn btn-danger" onClick={handleResetData} style={{ justifyContent: 'center', background: 'var(--danger-subtle)', color: 'var(--danger)' }}>
-                <Trash2 size={16} /> Apagar Tudo (Reset)
-              </button>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', marginBottom: 'var(--sp-3)' }}>
+                <label className="form-label" style={{ margin: 0 }}>Cor de Destaque</label>
+                <span style={{ fontSize: '10px', background: 'var(--accent-subtle)', color: 'var(--accent)', padding: '2px 6px', borderRadius: '4px', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Premium</span>
+              </div>
+              <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-tertiary)', marginBottom: 'var(--sp-3)' }}>Atmosfera imersiva e cinematográfica com degradês suaves e profundidade.</p>
+              
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--sp-3)' }}>
+                {premiumAccents.map((accent) => {
+                  const isActive = currentAccent === accent.id;
+                  return (
+                    <button
+                      key={accent.id}
+                      onClick={() => handleAccentChange(accent.id)}
+                      title={accent.name}
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: '50%',
+                        background: accent.color,
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all var(--transition-fast)',
+                        boxShadow: isActive ? `0 0 0 3px var(--bg-secondary), 0 0 0 6px var(--accent)` : 'none',
+                        opacity: isActive ? 1 : 0.6,
+                      }}
+                    >
+                      {isActive && <Check size={18} color="#ffffff" />}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Export/Import logic */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-6)' }}>
-          <div className="card">
-            <div className="card-header">
-              <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
-                <Download size={16} /> Exportação de Dados
-              </span>
-            </div>
-            {/* Formato */}
-            <div style={{ marginBottom: 'var(--sp-4)' }}>
+        {/* SECTION 2 — BACKUP E EXPORTAÇÃO */}
+        <div style={{ paddingBottom: 'var(--sp-8)', borderBottom: '1px solid var(--border-soft)' }}>
+          <h3 style={{ fontSize: 'var(--fs-lg)', color: 'var(--text-primary)', marginBottom: 'var(--sp-6)', display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', fontWeight: 600 }}>
+            <Database size={18} /> Exportar Dados
+          </h3>
+
+          <div style={{ display: 'flex', gap: 'var(--sp-4)', flexWrap: 'wrap', marginBottom: 'var(--sp-4)' }}>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <label className="form-label" style={{ fontSize: 'var(--fs-xs)' }}>Formato</label>
               <div style={{ display: 'flex', gap: 'var(--sp-2)' }}>
-                <button className={`btn ${format === 'csv' ? 'btn-primary' : 'btn-secondary'}`} style={{ flex: 1 }} onClick={() => setFormat('csv')}>
-                  CSV
-                </button>
-                <button className={`btn ${format === 'json' ? 'btn-primary' : 'btn-secondary'}`} style={{ flex: 1 }} onClick={() => setFormat('json')}>
-                  JSON
-                </button>
+                <button className={`btn ${format === 'csv' ? 'btn-primary' : 'btn-secondary'}`} style={{ flex: 1 }} onClick={() => setFormat('csv')}>CSV</button>
+                <button className={`btn ${format === 'json' ? 'btn-primary' : 'btn-secondary'}`} style={{ flex: 1 }} onClick={() => setFormat('json')}>JSON</button>
               </div>
             </div>
 
-            {/* Período */}
-            <div className="form-row" style={{ marginBottom: 'var(--sp-4)' }}>
-              <div className="form-group">
-                <label className="form-label">De</label>
+            <div style={{ flex: 2, minWidth: 300, display: 'flex', gap: 'var(--sp-3)' }}>
+              <div style={{ flex: 1 }}>
+                <label className="form-label" style={{ fontSize: 'var(--fs-xs)' }}>A partir de</label>
                 <input className="form-input" type="date" value={dateStart} onChange={e => setDateStart(e.target.value)} />
               </div>
-              <div className="form-group">
-                <label className="form-label">Até</label>
+              <div style={{ flex: 1 }}>
+                <label className="form-label" style={{ fontSize: 'var(--fs-xs)' }}>Até</label>
                 <input className="form-input" type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)} />
               </div>
             </div>
-
-            {/* Módulos */}
-            <div style={{ marginBottom: 'var(--sp-4)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--sp-2)' }}>
-                <span className="form-label">Módulos</span>
-                <button className="btn btn-ghost btn-sm" onClick={selectAll} style={{ padding: 0 }}>Todos</button>
-              </div>
-              <div className="grid grid-2" style={{ gap: 'var(--sp-2)' }}>
-                {modules.map(mod => (
-                  <label key={mod.key} style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', cursor: 'pointer', fontSize: 'var(--fs-xs)' }}>
-                    <input type="checkbox" checked={selectedModules.includes(mod.key)} onChange={() => toggleModule(mod.key)} style={{ accentColor: 'var(--accent)' }} />
-                    <span style={{ color: selectedModules.includes(mod.key) ? 'var(--text-primary)' : 'var(--text-tertiary)' }}>{mod.label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <button className="btn btn-primary" style={{ width: '100%', padding: 'var(--sp-3)' }} onClick={handleExport}
-              disabled={selectedModules.length === 0}>
-              <Download size={16} /> Iniciar Exportação
-            </button>
           </div>
 
-          <div className="card">
-            <div className="card-header">
-              <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
-                <Upload size={16} /> Importar Backup
-              </span>
+          <div style={{ marginBottom: 'var(--sp-4)', background: 'var(--bg-tertiary)', padding: 'var(--sp-3)', borderRadius: 'var(--radius-md)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--sp-3)' }}>
+              <span className="form-label" style={{ margin: 0, fontSize: 'var(--fs-xs)' }}>Módulos para exportar</span>
+              <button className="btn btn-ghost btn-sm" onClick={selectAll} style={{ padding: 0, height: 'auto', fontSize: 'var(--fs-xs)' }}>Selecionar Todos</button>
             </div>
-            <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)', marginBottom: 'var(--sp-4)' }}>
-              Substitua todos os dados locais por um arquivo JSON exportado anteriormente.
-            </p>
-            <label className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', cursor: 'pointer' }}>
-              <Upload size={16} /> Escolher Arquivo .json
-              <input type="file" accept=".json" onChange={handleImport} style={{ display: 'none' }} />
-            </label>
-          </div>
-
-          {/* Complementary Import */}
-          <div className="card" style={{ border: '1px solid var(--accent-glow)' }}>
-            <div className="card-header">
-              <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
-                <Layers size={16} style={{ color: 'var(--accent)' }} /> Importar Complemento
-              </span>
-            </div>
-            <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)', marginBottom: 'var(--sp-3)' }}>
-              Adicione dados de outro dispositivo sem apagar os atuais. Apenas módulos de conhecimento e revisão serão importados.
-            </p>
-            <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-tertiary)', marginBottom: 'var(--sp-4)', display: 'flex', flexWrap: 'wrap', gap: 'var(--sp-1)' }}>
-              {mergeableModules.map(m => (
-                <span key={m.key} className="badge badge-accent" style={{ fontSize: '10px' }}>{m.label}</span>
+            <div className="grid grid-2" style={{ gap: 'var(--sp-2)' }}>
+              {modules.map(mod => (
+                <label key={mod.key} style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', cursor: 'pointer', fontSize: 'var(--fs-xs)' }}>
+                  <input type="checkbox" checked={selectedModules.includes(mod.key)} onChange={() => toggleModule(mod.key)} style={{ accentColor: 'var(--accent)' }} />
+                  <span style={{ color: selectedModules.includes(mod.key) ? 'var(--text-primary)' : 'var(--text-tertiary)' }}>{mod.label}</span>
+                </label>
               ))}
             </div>
-            <label className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', cursor: 'pointer' }}>
-              <Layers size={16} /> Selecionar Backup para Complementar
-              <input type="file" accept=".json" onChange={handleMergeImportFile} style={{ display: 'none' }} />
-            </label>
+          </div>
+
+          <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={handleExport} disabled={selectedModules.length === 0}>
+            <Download size={16} /> Gerar e Baixar Exportação
+          </button>
+        </div>
+
+        {/* SECTION 3 — IMPORTAÇÃO */}
+        <div style={{ paddingBottom: 'var(--sp-8)', borderBottom: '1px solid var(--border-soft)' }}>
+          <h3 style={{ fontSize: 'var(--fs-lg)', color: 'var(--text-primary)', marginBottom: 'var(--sp-6)', display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', fontWeight: 600 }}>
+            <Upload size={18} /> Restauração e Importação
+          </h3>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 'var(--sp-4)' }}>
+            <div style={{ padding: 'var(--sp-4)', border: '1px solid var(--border-soft)', borderRadius: 'var(--radius-md)', background: 'var(--bg-tertiary)' }}>
+              <h4 style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-primary)', marginBottom: 'var(--sp-2)', display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
+                <Upload size={14} /> Importar Backup
+              </h4>
+              <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-tertiary)', marginBottom: 'var(--sp-4)', minHeight: 32 }}>
+                Substitui integralmente seu banco de dados atual por um arquivo .json de backup.
+              </p>
+              <label className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', cursor: 'pointer' }}>
+                <Upload size={14} /> Escolher Arquivo
+                <input type="file" accept=".json" onChange={handleImport} style={{ display: 'none' }} />
+              </label>
+            </div>
+
+            <div style={{ padding: 'var(--sp-4)', border: '1px solid var(--accent-glow)', borderRadius: 'var(--radius-md)', background: 'var(--accent-subtle)' }}>
+              <h4 style={{ fontSize: 'var(--fs-sm)', color: 'var(--accent)', marginBottom: 'var(--sp-2)', display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
+                <Layers size={14} /> Importar Complemento
+              </h4>
+              <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--accent)', opacity: 0.8, marginBottom: 'var(--sp-4)', minHeight: 32 }}>
+                Soma novos registros (Aprendizados, Experimentos, etc) ao seu banco atual, sem apagar nada.
+              </p>
+              <label className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', cursor: 'pointer' }}>
+                <Layers size={14} /> Escolher Complemento
+                <input type="file" accept=".json" onChange={handleMergeImportFile} style={{ display: 'none' }} />
+              </label>
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION 4 — SISTEMA / DADOS (ZONA DE PERIGO) */}
+        <div style={{ marginTop: 'var(--sp-4)', padding: 'var(--sp-5)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--danger-subtle)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--sp-4)' }}>
+            <div>
+              <h4 style={{ fontSize: 'var(--fs-sm)', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
+                <Trash2 size={16} /> Zona de Perigo
+              </h4>
+              <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-tertiary)', marginTop: '4px' }}>
+                Apagar permanentemente todos os dados do aplicativo. Esta ação não tem volta.
+              </p>
+            </div>
+            <button className="btn" onClick={handleResetData} style={{ background: 'var(--danger-subtle)', color: 'var(--danger)', border: 'none' }}>
+              Apagar Tudo (Reset)
+            </button>
           </div>
         </div>
       </div>
-
       {/* Merge Preview Modal */}
       {mergePreview && (
         <Modal title="Importação Complementar" onClose={() => setMergePreview(null)}>

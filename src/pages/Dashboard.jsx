@@ -16,7 +16,7 @@ import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recha
 
 const DEFAULT_LAYOUT = [
   { id: 'focus', label: 'Foco Principal de Hoje', visible: true, order: 0, fullWidth: false },
-  { id: 'monthly_goal', label: 'Meta Financeira do Mês', visible: true, order: 1, fullWidth: false },
+  { id: 'monthly_goal', label: 'Meta Financeira', visible: true, order: 1, fullWidth: false },
   { id: 'stats', label: 'Métricas Rápidas', visible: true, order: 2, fullWidth: true },
   { id: 'finance_snapshot', label: 'Finanças do Período', visible: true, order: 3, fullWidth: false },
   { id: 'weekly_chart', label: 'Produtividade Semanal', visible: true, order: 4, fullWidth: false },
@@ -27,13 +27,29 @@ const DEFAULT_LAYOUT = [
 export default function Dashboard() {
   const [showFinance, setShowFinance] = useState(true);
   const [dateFilter, setDateFilter] = useState({ period: 'Este mês', start: '', end: '' });
-  const [monthlyGoal, setMonthlyGoal] = useState(() => Number(localStorage.getItem('cp_monthlyGoal')) || 0);
-  const [monthlyGoalNote, setMonthlyGoalNote] = useState(() => localStorage.getItem('cp_monthlyGoalNote') || '');
+  
+  const [financialGoal, setFinancialGoal] = useState(() => {
+    try {
+      const saved = localStorage.getItem('cp_financialGoal_v2');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') return parsed;
+      }
+    } catch(e) { console.error('Error parsing goal:', e); }
+    const oldGoal = Number(localStorage.getItem('cp_monthlyGoal')) || 0;
+    return { type: 'mensal', value: oldGoal, start: '', end: '' };
+  });
   
   // Custom Layout State
   const [layout, setLayout] = useState(() => {
-    const saved = localStorage.getItem('cp_dashboard_layout');
-    return saved ? JSON.parse(saved) : DEFAULT_LAYOUT;
+    try {
+      const saved = localStorage.getItem('cp_dashboard_layout');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch(e) { console.error('Error parsing layout:', e); }
+    return DEFAULT_LAYOUT;
   });
   const [showLayoutModal, setShowLayoutModal] = useState(false);
 
@@ -125,6 +141,41 @@ export default function Dashboard() {
       periodProfit = periodIncome - periodExpenses;
     }
 
+    // Financial Goal Calc
+    let goalIncome = 0;
+    let goalRemainingDays = 0;
+    
+    let gStart, gEnd;
+    const todayDate = new Date();
+    todayDate.setHours(0,0,0,0);
+    
+    if (financialGoal?.type === 'mensal') {
+      const y = todayDate.getFullYear();
+      const m = todayDate.getMonth();
+      gStart = new Date(y, m, 1);
+      gEnd = new Date(y, m + 1, 0);
+    } else {
+      if (financialGoal?.start && financialGoal?.end) {
+        gStart = new Date(financialGoal.start + 'T00:00:00');
+        gEnd = new Date(financialGoal.end + 'T00:00:00');
+      } else {
+        gStart = todayDate;
+        gEnd = todayDate;
+      }
+    }
+
+    if (gStart && gEnd && !isNaN(gStart) && !isNaN(gEnd)) {
+      const startStr = gStart.toISOString().split('T')[0];
+      const endStr = gEnd.toISOString().split('T')[0];
+      const goalFinance = finance.filter(f => f.date >= startStr && f.date <= endStr);
+      goalIncome = goalFinance.filter(f => f.type === 'entrada').reduce((s, f) => s + f.amount, 0);
+      const diffRemaining = Math.ceil((gEnd - todayDate) / (1000 * 60 * 60 * 24));
+      goalRemainingDays = Math.max(0, diffRemaining);
+    }
+
+    const goalProgress = financialGoal?.value > 0 ? Math.min(100, Math.round((goalIncome / financialGoal.value) * 100)) : 0;
+    const goalRemainingValue = Math.max(0, (financialGoal?.value || 0) - goalIncome);
+
 
     // Pending tasks
     const pendingTasks = tasks.filter(t => !isTaskCompleted(t)).length;
@@ -160,9 +211,10 @@ export default function Dashboard() {
       periodIncome, periodExpenses, periodProfit,
       periodTrainedDays, pendingTasks, topFocusTasks,
       weekChartData,
+      goalIncome, goalRemainingDays, goalProgress, goalRemainingValue,
       latestReview: weeklyReviews[weeklyReviews.length - 1],
     };
-  }, [tasks, finance, dailyCheckIns, timeAllocations, workoutLogs, weeklyReviews, dateFilter]);
+  }, [tasks, finance, dailyCheckIns, timeAllocations, workoutLogs, weeklyReviews, dateFilter, financialGoal]);
 
   // Widget Renderers
   const WIDGETS = {
@@ -190,54 +242,99 @@ export default function Dashboard() {
     ),
     monthly_goal: (
       <div className="card card-accent h-100" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)', height: '100%' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' }}>
-          <DollarSign size={20} style={{ color: 'var(--success)' }} />
-          <span className="card-title" style={{ marginBottom: 0 }}>Meta Financeira do Mês</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' }}>
+            <Target size={20} style={{ color: 'var(--success)' }} />
+            <span className="card-title" style={{ marginBottom: 0 }}>Meta Financeira</span>
+          </div>
+          <select 
+            className="form-select" 
+            style={{ width: 'auto', padding: '4px 24px 4px 8px', fontSize: '11px', height: '24px', background: 'var(--bg-tertiary)', border: 'none' }}
+            value={financialGoal?.type || 'mensal'}
+            onChange={(e) => {
+              const newVal = { ...financialGoal, type: e.target.value };
+              setFinancialGoal(newVal);
+              localStorage.setItem('cp_financialGoal_v2', JSON.stringify(newVal));
+            }}
+          >
+            <option value="mensal">Mensal</option>
+            <option value="personalizado">Personalizado</option>
+          </select>
         </div>
         
-        <div style={{ display: 'flex', gap: 'var(--sp-4)', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 'var(--sp-3)', alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div style={{ flex: '1 1 120px' }}>
-            <label style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-secondary)' }}>Valor da Meta</label>
+            <label style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-secondary)' }}>Valor Alvo</label>
             <div style={{ position: 'relative' }}>
               <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }}>R$</span>
               <input 
                 type="number" 
-                value={monthlyGoal || ''} 
+                value={financialGoal.value || ''} 
                 onChange={(e) => {
-                  const val = Number(e.target.value);
-                  setMonthlyGoal(val);
-                  localStorage.setItem('cp_monthlyGoal', val);
+                  const newVal = { ...financialGoal, value: Number(e.target.value) };
+                  setFinancialGoal(newVal);
+                  localStorage.setItem('cp_financialGoal_v2', JSON.stringify(newVal));
                 }}
                 className="form-input" 
                 style={{ paddingLeft: 34, background: 'var(--bg-input)' }} 
-                placeholder="Ex: 5000"
+                placeholder="0"
               />
             </div>
           </div>
-          <div style={{ flex: '2 1 200px' }}>
-            <label style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-secondary)' }}>Estratégia / Notas</label>
-            <input 
-              value={monthlyGoalNote} 
-              onChange={(e) => {
-                const val = e.target.value;
-                setMonthlyGoalNote(val);
-                localStorage.setItem('cp_monthlyGoalNote', val);
-              }}
-              className="form-input" 
-              style={{ background: 'var(--bg-input)' }} 
-              placeholder="Plano de ação pago este mês..."
-            />
-          </div>
+
+          {financialGoal?.type === 'personalizado' && (
+            <>
+              <div style={{ flex: '1 1 110px' }}>
+                <label style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-secondary)' }}>Data Inicial</label>
+                <input 
+                  type="date" 
+                  value={financialGoal.start || ''} 
+                  onChange={(e) => {
+                    const newVal = { ...financialGoal, start: e.target.value };
+                    setFinancialGoal(newVal);
+                    localStorage.setItem('cp_financialGoal_v2', JSON.stringify(newVal));
+                  }}
+                  className="form-input" 
+                  style={{ background: 'var(--bg-input)' }} 
+                />
+              </div>
+              <div style={{ flex: '1 1 110px' }}>
+                <label style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-secondary)' }}>Data Final</label>
+                <input 
+                  type="date" 
+                  value={financialGoal.end || ''} 
+                  onChange={(e) => {
+                    const newVal = { ...financialGoal, end: e.target.value };
+                    setFinancialGoal(newVal);
+                    localStorage.setItem('cp_financialGoal_v2', JSON.stringify(newVal));
+                  }}
+                  className="form-input" 
+                  style={{ background: 'var(--bg-input)' }} 
+                />
+              </div>
+            </>
+          )}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
-          <span style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)' }}>Progresso (Global do Mês): <strong style={{ color: 'var(--text-primary)' }}>{showFinance ? formatCurrency(metrics.periodIncome) : '*****'}</strong> / {showFinance ? formatCurrency(monthlyGoal) : '*****'}</span>
-          <span style={{ fontSize: 'var(--fs-sm)', fontWeight: 600, color: 'var(--accent)' }}>
-            {monthlyGoal > 0 ? Math.min(100, Math.round((metrics.periodIncome / monthlyGoal) * 100)) : 0}%
-          </span>
-        </div>
-        <div style={{ background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-full)', height: 6, overflow: 'hidden' }}>
-          <div style={{ width: `${monthlyGoal > 0 ? Math.min(100, (metrics.periodIncome / monthlyGoal) * 100) : 0}%`, height: '100%', background: 'linear-gradient(90deg, var(--accent), var(--teal))', borderRadius: 'var(--radius-full)', transition: 'width 0.6s ease' }} />
+        <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+            <div>
+              <div style={{ fontSize: 'var(--fs-xl)', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>
+                {showFinance ? formatCurrency(metrics.goalIncome) : '*****'}
+              </div>
+              <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-secondary)', marginTop: '6px', fontWeight: 500 }}>
+                {metrics.goalRemainingValue > 0 ? `Faltam ${formatCurrency(metrics.goalRemainingValue)}` : 'Meta atingida! 🚀'} 
+                <span style={{ color: 'var(--text-tertiary)', fontWeight: 400 }}> • {metrics.goalRemainingDays} dias restantes</span>
+              </div>
+            </div>
+            <div style={{ fontSize: 'var(--fs-lg)', fontWeight: 700, color: 'var(--success)', opacity: metrics.goalProgress >= 100 ? 1 : 0.8 }}>
+              {metrics.goalProgress}%
+            </div>
+          </div>
+          
+          <div style={{ background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-full)', height: 8, overflow: 'hidden' }}>
+            <div style={{ width: `${metrics.goalProgress}%`, height: '100%', background: 'linear-gradient(90deg, var(--accent), var(--success))', borderRadius: 'var(--radius-full)', transition: 'width 0.6s ease' }} />
+          </div>
         </div>
       </div>
     ),
@@ -256,7 +353,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="stat-card card-accent" style={{ height: '100%' }}>
+        <div className="stat-card" style={{ height: '100%' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span className="stat-label">Score do Dia</span>
             <div className="stat-icon" style={{ background: 'var(--accent-subtle)' }}>
@@ -343,7 +440,7 @@ export default function Dashboard() {
       </div>
     ),
     week_summary: (
-      <div className="card card-accent h-100">
+      <div className="card h-100">
         <div className="card-header">
           <span className="card-title">Resumo do Período</span>
           <Calendar size={16} style={{ color: 'var(--accent)' }} />
@@ -404,7 +501,7 @@ export default function Dashboard() {
           <h1>Dashboard</h1>
           <p>Sua central de comando — {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
         </div>
-        <GoalTracker monthlyGoal={monthlyGoal} />
+        <GoalTracker monthlyGoal={financialGoal?.value || 0} />
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--sp-6)' }}>
