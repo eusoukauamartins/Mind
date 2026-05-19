@@ -386,12 +386,15 @@ html[data-mode="light"][data-accent="gray-premium"] {
 html[data-mode="light"] .atmospheric-glow-1 {
   opacity: 0.06;
   filter: blur(180px);
+  animation: atmosphericBreathing1Light 45s infinite alternate ease-in-out;
 }
 html[data-mode="light"] .atmospheric-glow-2 {
   opacity: 0.04;
   filter: blur(180px);
+  animation: atmosphericBreathing2Light 55s infinite alternate ease-in-out;
 }
-html[data-mode="light"] @keyframes atmosphericBreathing1 {
+
+@keyframes atmosphericBreathing1Light {
   0% {
     transform: translate(0, 0) scale(1);
     opacity: 0.04;
@@ -405,7 +408,8 @@ html[data-mode="light"] @keyframes atmosphericBreathing1 {
     opacity: 0.04;
   }
 }
-html[data-mode="light"] @keyframes atmosphericBreathing2 {
+
+@keyframes atmosphericBreathing2Light {
   0% {
     transform: translate(0, 0) scale(1.05);
     opacity: 0.03;
