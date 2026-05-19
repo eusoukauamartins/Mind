@@ -628,7 +628,7 @@ img {
 .stat-card .stat-icon {
   width: 36px;
   height: 36px;
-  border-radius: var(--radius-md);
+  border-radius: 9px;
   display: flex;
   align-items: center;
   justify-content: center;
