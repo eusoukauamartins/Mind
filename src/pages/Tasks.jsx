@@ -194,7 +194,7 @@ function RoutineColumn({ dailyTasks, weeklyByDay, todayWeekday, onToggle, onEdit
                 }}>
                   {WEEKDAY_LABELS[day]}
                   {day === todayWeekday && (
-                    <span style={{ fontSize: '9px', background: 'var(--accent)', color: 'var(--bg-primary)', padding: '1px 6px', borderRadius: 'var(--radius-full)', fontWeight: 700 }}>HOJE</span>
+                    <span style={{ fontSize: '9px', background: 'var(--accent)', color: '#ffffff', padding: '1px 6px', borderRadius: 'var(--radius-full)', fontWeight: 700 }}>HOJE</span>
                   )}
                 </div>
                 {renderCards(weeklyByDay[day])}
