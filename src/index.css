@@ -1801,3 +1801,111 @@ tr:hover td {
 .w-full {
   width: 100%;
 }
+
+/* ===== FIXED MONTHLY COSTS ATMOSPHERIC BREATHING GLOWS ===== */
+@keyframes fixedCostDueSoonBreathing {
+  0% {
+    border-color: rgba(246, 196, 83, 0.2);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 10px rgba(246, 196, 83, 0.05);
+  }
+  50% {
+    border-color: rgba(246, 196, 83, 0.45);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), 0 0 20px rgba(246, 196, 83, 0.2);
+  }
+  100% {
+    border-color: rgba(246, 196, 83, 0.2);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 10px rgba(246, 196, 83, 0.05);
+  }
+}
+
+@keyframes fixedCostOverdueBreathing {
+  0% {
+    border-color: rgba(255, 107, 107, 0.35);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 12px rgba(255, 107, 107, 0.08);
+  }
+  50% {
+    border-color: rgba(255, 107, 107, 0.7);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), 0 0 25px rgba(255, 107, 107, 0.35);
+  }
+  100% {
+    border-color: rgba(255, 107, 107, 0.35);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 12px rgba(255, 107, 107, 0.08);
+  }
+}
+
+.fixed-cost-card-normal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-soft);
+  position: relative;
+  transition: all var(--transition-base);
+}
+
+.fixed-cost-card-normal:hover {
+  border-color: var(--border-hover);
+  background: var(--bg-hover);
+}
+
+.fixed-cost-card-duesoon {
+  background: linear-gradient(145deg, var(--bg-secondary), rgba(246, 196, 83, 0.02));
+  border: 1px solid rgba(246, 196, 83, 0.35);
+  position: relative;
+  animation: fixedCostDueSoonBreathing 4.5s infinite ease-in-out;
+  transition: all var(--transition-base);
+}
+
+.fixed-cost-card-duesoon:hover {
+  background: linear-gradient(145deg, var(--bg-hover), rgba(246, 196, 83, 0.04));
+}
+
+.fixed-cost-card-overdue {
+  background: linear-gradient(145deg, var(--bg-secondary), rgba(255, 107, 107, 0.03));
+  border: 1px solid rgba(255, 107, 107, 0.45);
+  position: relative;
+  animation: fixedCostOverdueBreathing 4s infinite ease-in-out;
+  transition: all var(--transition-base);
+}
+
+.fixed-cost-card-overdue:hover {
+  background: linear-gradient(145deg, var(--bg-hover), rgba(255, 107, 107, 0.05));
+}
+
+.fixed-cost-card-paid {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-soft);
+  position: relative;
+  opacity: 0.65;
+  transition: all var(--transition-base);
+}
+
+.fixed-cost-card-paid:hover {
+  opacity: 1;
+  background: var(--bg-hover);
+}
+
+/* Card Left Accent Bar Indicator */
+.fixed-cost-indicator-bar {
+  position: absolute;
+  left: 0;
+  top: 12%;
+  bottom: 12%;
+  width: 3px;
+  border-top-right-radius: 3px;
+  border-bottom-right-radius: 3px;
+  transition: background var(--transition-base);
+}
+
+.fixed-cost-indicator-bar-normal {
+  background: transparent;
+}
+
+.fixed-cost-indicator-bar-duesoon {
+  background: var(--warning);
+}
+
+.fixed-cost-indicator-bar-overdue {
+  background: var(--danger);
+}
+
+.fixed-cost-indicator-bar-paid {
+  background: var(--success);
+}

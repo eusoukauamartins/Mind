@@ -7,6 +7,7 @@ import DateFilter from '../components/DateFilter';
 import { Plus, DollarSign, TrendingUp, TrendingDown, Search, Trash2, Edit2, Wallet, Edit3, LineChart as LineChartIcon, X } from 'lucide-react';
 import { formatCurrency, formatDate, isThisMonth, isThisWeek, getWeekDates } from '../utils/helpers';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import FixedCosts from '../components/FixedCosts';
 
 const defaultEntry = { type: 'entrada', amount: '', category: '', expenseClass: '', subcategory: '', source: '', date: new Date().toISOString().split('T')[0], notes: '' };
 const incomeCategories = ['Vendas', 'Serviços', 'Investimentos', 'Outros'];
@@ -522,6 +523,9 @@ export default function Finance() {
           </ResponsiveContainer>
         </div>
       )}
+
+      {/* Custos Fixos Mensais */}
+      <FixedCosts />
 
       {/* Transactions List */}
       <div className="card">

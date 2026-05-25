@@ -140,4 +140,5 @@ export const COLLECTIONS = {
   WORKOUT_ROUTINES: 'workout_routines',
   WORKOUT_LOGS: 'workout_logs',
   PROJECTS: 'projects',
+  FIXED_COSTS: 'fixed_costs',
 };

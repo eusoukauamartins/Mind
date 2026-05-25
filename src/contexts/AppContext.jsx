@@ -15,6 +15,7 @@ const initialState = {
   workoutRoutines: db.getAll(COLLECTIONS.WORKOUT_ROUTINES),
   workoutLogs: db.getAll(COLLECTIONS.WORKOUT_LOGS),
   projects: db.getAll(COLLECTIONS.PROJECTS),
+  fixedCosts: db.getAll(COLLECTIONS.FIXED_COSTS),
   lastUpdate: Date.now(),
 };
 
@@ -33,6 +34,7 @@ function reducer(state, action) {
         workoutRoutines: db.getAll(COLLECTIONS.WORKOUT_ROUTINES),
         workoutLogs: db.getAll(COLLECTIONS.WORKOUT_LOGS),
         projects: db.getAll(COLLECTIONS.PROJECTS),
+        fixedCosts: db.getAll(COLLECTIONS.FIXED_COSTS),
         lastUpdate: Date.now(),
       };
     case 'REFRESH_COLLECTION':
@@ -57,6 +59,7 @@ const collectionMap = {
   workoutRoutines: COLLECTIONS.WORKOUT_ROUTINES,
   workoutLogs: COLLECTIONS.WORKOUT_LOGS,
   projects: COLLECTIONS.PROJECTS,
+  fixedCosts: COLLECTIONS.FIXED_COSTS,
 };
 
 export function AppProvider({ children }) {
