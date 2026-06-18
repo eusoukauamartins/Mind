@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Lyria — Sistema pessoal de produtividade, finanças e performance para criadores e fundadores solo." />
+    
+    <!-- PWA & iOS Home Screen Setup -->
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0d0e12" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Lyria" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>Lyria</title>
+    <script>
+      (function() {
+        try {
+          var mode = localStorage.getItem('cp_mode') || 'dark';
+          var accent = localStorage.getItem('cp_accent');
+          
+          if (!accent) {
+            var legacy = localStorage.getItem('cp_theme');
+            if (legacy && legacy.startsWith('dark-')) {
+              accent = legacy.split('dark-')[1];
+            } else {
+              accent = 'purple-premium';
+            }
+          }
+          
+          // Force migration if accent is a solid color
+          if (accent && !accent.endsWith('-premium')) {
+            accent = accent + '-premium';
+            localStorage.setItem('cp_accent', accent);
+          }
+          
+          document.documentElement.setAttribute('data-mode', mode);
+          document.documentElement.setAttribute('data-accent', accent);
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
