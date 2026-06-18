@@ -346,7 +346,7 @@ export default function Dashboard() {
   // Widget Renderers
   const WIDGETS = {
     focus: (
-      <div className="card h-100" style={{ background: 'rgba(30, 20, 50, 0.4)', border: '1px solid rgba(168, 85, 247, 0.25)', minHeight: '380px', display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
+      <div className="card h-100" style={{ minHeight: '380px', display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' }}>
             <Zap size={22} style={{ color: 'var(--accent)' }} />
@@ -367,7 +367,7 @@ export default function Dashboard() {
               metrics.topFocusTasks.map((t) => {
                 const isCompleted = isTaskCompleted(t, new Date(today + 'T12:00:00'));
                 return (
-                  <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', padding: 'var(--sp-2) var(--sp-3)', background: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.2)', borderRadius: 'var(--radius-md)', transition: 'all var(--transition-fast)' }}>
+                  <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', padding: 'var(--sp-2) var(--sp-3)', background: 'var(--accent-subtle)', border: '1px solid var(--accent-glow)', borderRadius: 'var(--radius-md)', transition: 'all var(--transition-fast)' }}>
                     <button
                       className={`checkbox ${isCompleted ? 'checked' : ''}`}
                       onClick={() => handleToggleComplete(t)}
