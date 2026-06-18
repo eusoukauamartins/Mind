@@ -257,6 +257,7 @@ function safeGetAll(collectionKey) {
           createdAt: r.createdAt || r.created_at || new Date().toISOString(),
           financialTargetAmount: fTarget,
           financialCurrentAmount: fCurrent,
+          showOnDashboard: r.showOnDashboard === true || r.show_on_dashboard === true,
         };
       }).filter(Boolean);
 

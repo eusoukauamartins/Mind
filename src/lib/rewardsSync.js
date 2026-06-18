@@ -98,6 +98,7 @@ export async function syncRewards(user) {
       if (!fetchError && remoteData) {
         const mapped = remoteData.map(col.mapRemote);
         db.set(col.dbKey, mapped);
+        console.log('[Lyria Import Debug - Rewards] Rewards count after sync download:', mapped.length);
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent(col.event));
         }

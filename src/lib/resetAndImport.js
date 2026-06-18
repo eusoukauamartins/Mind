@@ -603,6 +603,10 @@ export async function importFullBackup(importedData, mappers, refreshAll) {
   try {
     const { normalized: normalizedData, presentKeys } = normalizeBackupData(importedData);
 
+    if (presentKeys.rewards) {
+      console.log('[Lyria Import Debug - Rewards] Detected rewards in JSON:', (normalizedData.rewards || []).length);
+    }
+
     // C4: Regenerate all ids BEFORE anything destructive, so imported rows can never
     // collide with another user's rows on upsert (the RLS "USING expression" error).
     const idMap = remapImportedIds(normalizedData, collectionKeys);
@@ -655,6 +659,11 @@ export async function importFullBackup(importedData, mappers, refreshAll) {
         }
       }
 
+      if (stateKey === 'rewards') {
+        console.log('[Lyria Import Debug - Rewards] Upload payload count:', payload.length);
+        console.log('[Lyria Import Debug - Rewards] First upload payload sample:', payload[0] ? JSON.stringify(payload[0]) : 'none');
+      }
+
       uploadPlan.push({ stateKey, table: config.table, payload, count: items.length });
     }
     console.log('[Lyria Import Debug] upload plan built for modules:',
@@ -698,6 +707,7 @@ export async function importFullBackup(importedData, mappers, refreshAll) {
       }
     });
     console.log('[Lyria Import Debug] local write counts:', localWriteCounts.join(', '));
+    console.log('[Lyria Import Debug - Rewards] Local rewards count after writing to DB:', (db.getAll('rewards') || []).length);
 
     // 6. Refresh React state with imported data
     if (refreshAll) {
@@ -725,21 +735,68 @@ export async function importFullBackup(importedData, mappers, refreshAll) {
 
       let uploadError = await upsertChunks(table, payload);
 
+      if (stateKey === 'rewards') {
+        if (uploadError) {
+          console.error('[Lyria Import Debug - Rewards] Supabase upload failed with error:', uploadError);
+        } else {
+          console.log('[Lyria Import Debug - Rewards] Supabase upload succeeded!');
+        }
+      }
+
       if (uploadError && isMissingSchemaError(uploadError)) {
         if (stateKey === 'rewards') {
-          // Retry rewards without optional financial columns (migration 003 not applied).
-          const stripped = payload.map(r => {
+          // Retry chain for rewards when optional columns are missing
+          console.log('[Lyria Import Debug - Rewards] Table column mismatch. Starting retry chain...');
+          
+          // Retry 1: Strip show_on_dashboard
+          const strippedShowOnDashboard = payload.map(r => {
             const copy = { ...r };
-            delete copy.financial_target_amount;
-            delete copy.financial_current_amount;
+            delete copy.show_on_dashboard;
             return copy;
           });
-          const retryError = await upsertChunks(table, stripped);
+          console.log('[Lyria Import Debug - Rewards] Retrying upload without show_on_dashboard...');
+          let retryError = await upsertChunks(table, strippedShowOnDashboard);
           if (!retryError) {
-            console.warn('[Lyria Import] Recompensas enviadas sem colunas financeiras (rode a migration 003).');
-            uploadCounts.push(`${stateKey}: ${count} (sem colunas financeiras)`);
+            console.warn('[Lyria Import] Recompensas enviadas sem coluna show_on_dashboard (rode a migration 006).');
+            uploadCounts.push(`${stateKey}: ${count} (sem coluna show_on_dashboard)`);
             continue;
           }
+
+          // Retry 2: Strip show_on_dashboard AND financial columns
+          if (isMissingSchemaError(retryError)) {
+            const strippedAll = payload.map(r => {
+              const copy = { ...r };
+              delete copy.show_on_dashboard;
+              delete copy.financial_target_amount;
+              delete copy.financial_current_amount;
+              return copy;
+            });
+            console.log('[Lyria Import Debug - Rewards] Retrying upload without show_on_dashboard and financial columns...');
+            retryError = await upsertChunks(table, strippedAll);
+            if (!retryError) {
+              console.warn('[Lyria Import] Recompensas enviadas sem coluna show_on_dashboard e sem colunas financeiras (rode as migrations 003 e 006).');
+              uploadCounts.push(`${stateKey}: ${count} (sem show_on_dashboard e sem colunas financeiras)`);
+              continue;
+            }
+          }
+
+          // Retry 3: Strip only financial columns (in case show_on_dashboard is present but financial is missing)
+          if (isMissingSchemaError(retryError)) {
+            const strippedFinancial = payload.map(r => {
+              const copy = { ...r };
+              delete copy.financial_target_amount;
+              delete copy.financial_current_amount;
+              return copy;
+            });
+            console.log('[Lyria Import Debug - Rewards] Retrying upload without financial columns...');
+            retryError = await upsertChunks(table, strippedFinancial);
+            if (!retryError) {
+              console.warn('[Lyria Import] Recompensas enviadas sem colunas financeiras (rode a migration 003).');
+              uploadCounts.push(`${stateKey}: ${count} (sem colunas financeiras)`);
+              continue;
+            }
+          }
+
           if (isMissingSchemaError(retryError)) {
             remoteSkipped.add(stateKey);
             console.warn('[Lyria Import] Tabela "rewards" ausente. Recompensas mantidas apenas localmente (rode a migration 002).');
@@ -798,14 +855,19 @@ export async function importFullBackup(importedData, mappers, refreshAll) {
     }
 
     // 9. Set migration_state to 'completed' for all collections
-    const migrationUpserts = collectionKeys.map(key => ({
-      user_id: authUser.id,
-      collection_key: key,
-      status: 'completed',
-      local_count: (normalizedData[key] || []).length,
-      remote_count: (normalizedData[key] || []).length,
-      migrated_at: new Date().toISOString(),
-    }));
+    const migrationUpserts = collectionKeys.map(key => {
+      const isSkipped = remoteSkipped.has(key);
+      return {
+        user_id: authUser.id,
+        collection_key: key,
+        status: isSkipped ? 'pending' : 'completed',
+        local_count: (normalizedData[key] || []).length,
+        remote_count: isSkipped ? 0 : (normalizedData[key] || []).length,
+        migrated_at: isSkipped ? null : new Date().toISOString(),
+      };
+    });
+    console.log('[Lyria Import Debug - Rewards] migration_state row for rewards:', JSON.stringify(migrationUpserts.find(m => m.collection_key === 'rewards')));
+
     const { error: migError } = await supabase
       .from('migration_state')
       .upsert(migrationUpserts, { onConflict: 'user_id,collection_key' });
@@ -862,6 +924,9 @@ export async function importFullBackup(importedData, mappers, refreshAll) {
                 local: localItems.length,
                 supabaseCount: count
               });
+            }
+            if (stateKey === 'rewards') {
+              console.log('[Lyria Import Debug - Rewards] Remote rewards count verified:', count);
             }
           }
         }
