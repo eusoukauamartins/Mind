@@ -20,6 +20,26 @@ export function AuthProvider({ children }) {
 
   const configured = isSupabaseConfigured();
 
+  const triggerSyncChain = useCallback((currentUser) => {
+    syncSettings(currentUser).then(() => {
+      return syncTasks(currentUser);
+    }).then(() => {
+      return syncBatch1(currentUser);
+    }).then(() => {
+      return syncBatch2(currentUser);
+    }).then(() => {
+      return syncBatch3(currentUser);
+    }).then(() => {
+      return syncRewards(currentUser);
+    }).then(() => {
+      return syncWeeklyReviews(currentUser);
+    }).then(() => {
+      syncFinance(currentUser);
+    }).catch(err => {
+      console.error('[Lyria Auth] Sync chain error:', err);
+    });
+  }, []);
+
   useEffect(() => {
     // If Supabase is not configured, skip auth entirely
     if (!configured || !supabase) {
@@ -27,67 +47,58 @@ export function AuthProvider({ children }) {
       return;
     }
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
-      setSession(currentSession);
-      const currentUser = currentSession?.user ?? null;
-      setUser(currentUser);
-      setLoading(false);
- 
-      if (currentUser && lastSyncedUserRef.current !== currentUser.id) {
-        lastSyncedUserRef.current = currentUser.id;
-        syncSettings(currentUser).then(() => {
-          return syncTasks(currentUser);
-        }).then(() => {
-          return syncBatch1(currentUser);
-        }).then(() => {
-          return syncBatch2(currentUser);
-        }).then(() => {
-          return syncBatch3(currentUser);
-        }).then(() => {
-          return syncRewards(currentUser);
-        }).then(() => {
-          return syncWeeklyReviews(currentUser);
-        }).then(() => {
-          syncFinance(currentUser);
-        });
+    let isMounted = true;
+
+    // Get initial session and wait for it before deciding user is logged out
+    supabase.auth.getSession().then(({ data: { session: currentSession }, error }) => {
+      if (!isMounted) return;
+      if (error) {
+        console.error('[Lyria Auth] getSession error on load:', error.message);
       }
+
+      if (currentSession) {
+        setSession(currentSession);
+        const currentUser = currentSession.user;
+        setUser(currentUser);
+
+        if (lastSyncedUserRef.current !== currentUser.id) {
+          lastSyncedUserRef.current = currentUser.id;
+          triggerSyncChain(currentUser);
+        }
+      }
+      setLoading(false);
     });
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, newSession) => {
-        setSession(newSession);
-        const currentUser = newSession?.user ?? null;
-        setUser(currentUser);
+      (event, newSession) => {
+        if (!isMounted) return;
+        console.log(`[Lyria Auth] onAuthStateChange event: ${event}`);
 
-        if (currentUser && lastSyncedUserRef.current !== currentUser.id) {
-          lastSyncedUserRef.current = currentUser.id;
-          syncSettings(currentUser).then(() => {
-            return syncTasks(currentUser);
-          }).then(() => {
-            return syncBatch1(currentUser);
-          }).then(() => {
-            return syncBatch2(currentUser);
-          }).then(() => {
-            return syncBatch3(currentUser);
-          }).then(() => {
-            return syncRewards(currentUser);
-          }).then(() => {
-            return syncWeeklyReviews(currentUser);
-          }).then(() => {
-            syncFinance(currentUser);
-          });
-        } else if (!currentUser) {
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+          if (newSession) {
+            setSession(newSession);
+            const currentUser = newSession.user;
+            setUser(currentUser);
+
+            if (lastSyncedUserRef.current !== currentUser.id) {
+              lastSyncedUserRef.current = currentUser.id;
+              triggerSyncChain(currentUser);
+            }
+          }
+        } else if (event === 'SIGNED_OUT') {
+          setSession(null);
+          setUser(null);
           lastSyncedUserRef.current = null;
         }
       }
     );
 
     return () => {
+      isMounted = false;
       subscription.unsubscribe();
     };
-  }, [configured]);
+  }, [configured, triggerSyncChain]);
 
 
   const signUp = useCallback(async (email, password, displayName) => {

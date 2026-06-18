@@ -25,9 +25,11 @@ export function isSupabaseConfigured() {
 export const supabase = isSupabaseConfigured()
   ? createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
-        autoRefreshToken: true,
         persistSession: true,
+        autoRefreshToken: true,
         detectSessionInUrl: true,
+        storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+        storageKey: 'lyria-auth-session'
       },
     })
   : null;
