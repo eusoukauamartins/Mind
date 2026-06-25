@@ -6,7 +6,7 @@ import { buildAIContext } from '../lib/aiContextBuilder';
 import { 
   Sparkles, Send, Bot, Trash2, Check, AlertCircle, Info, RefreshCw, 
   X, RotateCcw, AlertTriangle, Eye, Paperclip, Shield, Activity, 
-  Layers, ChevronRight, Mic 
+  Layers, ChevronRight, Mic, History, Pin, Archive, Edit2 
 } from 'lucide-react';
 import { getToday } from '../utils/helpers';
 
@@ -24,19 +24,113 @@ const PROVIDER_LABELS = {
   xai: 'xAI Grok (Em Breve)'
 };
 
+function inferTitleFromMessage(messageText) {
+  if (!messageText) return 'Nova Conversa';
+  const text = messageText.trim().toLowerCase();
+  
+  if (text.includes('tarefa') || text.includes('todo') || text.includes('fazer') || text.includes('rotina')) {
+    return 'Organização de Tarefas';
+  }
+  if (text.includes('finança') || text.includes('gasto') || text.includes('despesa') || text.includes('receita') || text.includes('lançar') || text.includes('dinheiro')) {
+    return 'Planejamento Financeiro';
+  }
+  if (text.includes('projeto') || text.includes('campanha') || text.includes('ads')) {
+    return 'Planejamento de Projeto';
+  }
+  if (text.includes('ideia') || text.includes('conteúdo') || text.includes('criar') || text.includes('escrever')) {
+    return 'Ideias para Conteúdo';
+  }
+  if (text.includes('estudo') || text.includes('aprender') || text.includes('curso')) {
+    return 'Estudos e Aprendizados';
+  }
+  
+  const words = messageText.trim().split(/\s+/);
+  if (words.length <= 4) {
+    return messageText.trim();
+  }
+  return words.slice(0, 4).join(' ') + '...';
+}
+
 export default function AIAssistant() {
   const { session, isAuthenticated } = useAuth();
   const appState = useApp();
   const { createItem, deleteItem, refreshAll } = appState;
 
-  const [messages, setMessages] = useState(() => {
-    try {
-      const saved = localStorage.getItem('cp_ai_chat_history');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      return [];
+  const [conversations, setConversations] = useState(() => {
+    const migrated = localStorage.getItem('cp_ai_history_migrated');
+    const oldHistoryStr = localStorage.getItem('cp_ai_chat_history');
+    
+    if (!migrated && oldHistoryStr) {
+      try {
+        const oldHistory = JSON.parse(oldHistoryStr);
+        if (Array.isArray(oldHistory) && oldHistory.length > 0) {
+          const migratedConv = {
+            id: crypto.randomUUID(),
+            title: 'Conversa Anterior',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            messages: oldHistory,
+            provider: 'openai',
+            model: 'gpt-4o',
+            messageCount: oldHistory.length,
+            pinned: false,
+            archived: false
+          };
+          localStorage.setItem('cp_ai_conversations', JSON.stringify([migratedConv]));
+          localStorage.setItem('cp_ai_current_conversation_id', migratedConv.id);
+          localStorage.setItem('cp_ai_history_migrated', 'true');
+          return [migratedConv];
+        }
+      } catch (e) {
+        console.error('Failed to migrate history:', e);
+      }
     }
+    
+    try {
+      const saved = localStorage.getItem('cp_ai_conversations');
+      const list = saved ? JSON.parse(saved) : [];
+      if (list.length > 0) {
+        return list;
+      }
+    } catch (e) {
+      console.error('Failed to parse conversations:', e);
+    }
+    
+    const firstConv = {
+      id: crypto.randomUUID(),
+      title: 'Nova Conversa',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [],
+      provider: 'openai',
+      model: 'gpt-4o',
+      messageCount: 0,
+      pinned: false,
+      archived: false
+    };
+    return [firstConv];
   });
+
+  const [currentConversationId, setCurrentConversationId] = useState(() => {
+    const savedId = localStorage.getItem('cp_ai_current_conversation_id');
+    return savedId || '';
+  });
+
+  useEffect(() => {
+    if (conversations.length > 0) {
+      const exists = conversations.some(c => c.id === currentConversationId);
+      if (!exists) {
+        const nonArchived = conversations.find(c => !c.archived);
+        setCurrentConversationId(nonArchived ? nonArchived.id : conversations[0].id);
+      }
+    }
+  }, [conversations, currentConversationId]);
+
+  const currentConversation = useMemo(() => {
+    return conversations.find(c => c.id === currentConversationId) || conversations[0] || null;
+  }, [conversations, currentConversationId]);
+
+  const messages = currentConversation?.messages || [];
 
   const [actionLogs, setActionLogs] = useState(() => {
     try {
@@ -59,6 +153,17 @@ export default function AIAssistant() {
       return { provider: 'openai', model: 'gpt-4o' };
     }
   });
+
+  // History panel related states
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [renamingId, setRenamingId] = useState(null);
+  const [renameTitle, setRenameTitle] = useState('');
+  const [visibleMessagesCount, setVisibleMessagesCount] = useState(25);
+
+  const visibleMessages = useMemo(() => {
+    return messages.slice(-visibleMessagesCount);
+  }, [messages, visibleMessagesCount]);
 
   const [statusData, setStatusData] = useState(null);
   const [statusError, setStatusError] = useState(null);
@@ -153,6 +258,192 @@ export default function AIAssistant() {
   useEffect(() => {
     localStorage.setItem('cp_ai_action_log', JSON.stringify(actionLogs));
   }, [actionLogs]);
+
+  // Reset visible messages count when active conversation switches
+  useEffect(() => {
+    setVisibleMessagesCount(25);
+  }, [currentConversationId]);
+
+  // Persist conversations list to localStorage
+  useEffect(() => {
+    localStorage.setItem('cp_ai_conversations', JSON.stringify(conversations));
+  }, [conversations]);
+
+  // Persist active conversation ID to localStorage
+  useEffect(() => {
+    if (currentConversationId) {
+      localStorage.setItem('cp_ai_current_conversation_id', currentConversationId);
+    }
+  }, [currentConversationId]);
+
+  // Update provider/model settings when switching conversations
+  useEffect(() => {
+    if (currentConversation) {
+      const p = currentConversation.provider || 'openai';
+      const m = currentConversation.model || 'gpt-4o';
+      
+      const supportedProviders = ['openai', 'anthropic'];
+      const isSupported = supportedProviders.includes(p);
+      const isModelValid = PROVIDER_MODELS[p]?.includes(m);
+      
+      if (isSupported && isModelValid) {
+        setProviderSettings({ provider: p, model: m });
+      } else {
+        setProviderSettings({ provider: 'openai', model: 'gpt-4o' });
+      }
+    }
+  }, [currentConversationId]);
+
+  // Helper to update active conversation's messages and trigger auto-title inference
+  const updateActiveConversationMessages = (newMessages) => {
+    setConversations(prev => prev.map(c => {
+      if (c.id === currentConversationId) {
+        let title = c.title;
+        if (c.messages.length === 0 && newMessages.length > 0) {
+          const firstUserMsg = newMessages.find(m => m.role === 'user');
+          if (firstUserMsg && (c.title === 'Nova Conversa' || !c.title)) {
+            title = inferTitleFromMessage(firstUserMsg.content);
+          }
+        }
+        return {
+          ...c,
+          messages: newMessages,
+          messageCount: newMessages.length,
+          title,
+          updatedAt: new Date().toISOString()
+        };
+      }
+      return c;
+    }));
+  };
+
+  // Helper to generate a relative/friendly date label
+  const getRelativeDateLabel = (dateString) => {
+    if (!dateString) return 'Sem data';
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      
+      const d1 = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const d2 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const diffTime = d2.getTime() - d1.getTime();
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 0) return 'Hoje';
+      if (diffDays === 1) return 'Ontem';
+      if (diffDays < 7) return `${diffDays} dias atrás`;
+      
+      return date.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' });
+    } catch (e) {
+      return 'Sem data';
+    }
+  };
+
+  // Create a new empty conversation and set it as active
+  const handleNewConversation = () => {
+    const newId = crypto.randomUUID();
+    const newConv = {
+      id: newId,
+      title: 'Nova Conversa',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [],
+      provider: providerSettings.provider,
+      model: providerSettings.model,
+      messageCount: 0,
+      pinned: false,
+      archived: false
+    };
+    setConversations(prev => [newConv, ...prev]);
+    setCurrentConversationId(newId);
+    setIsHistoryOpen(false);
+  };
+
+  // Rename conversation inline
+  const handleRenameConversation = (id, newTitle) => {
+    if (!newTitle || !newTitle.trim()) return;
+    setConversations(prev => prev.map(c => {
+      if (c.id === id) {
+        return { ...c, title: newTitle.trim(), updatedAt: new Date().toISOString() };
+      }
+      return c;
+    }));
+  };
+
+  // Pin/Unpin conversation
+  const handleTogglePin = (id) => {
+    setConversations(prev => prev.map(c => {
+      if (c.id === id) {
+        return { ...c, pinned: !c.pinned, updatedAt: new Date().toISOString() };
+      }
+      return c;
+    }));
+  };
+
+  // Archive/Unarchive conversation
+  const handleToggleArchive = (id) => {
+    setConversations(prev => prev.map(c => {
+      if (c.id === id) {
+        const toggledArchive = !c.archived;
+        if (toggledArchive && currentConversationId === id) {
+          setTimeout(() => {
+            setConversations(latest => {
+              const nonArchived = latest.find(x => x.id !== id && !x.archived);
+              if (nonArchived) {
+                setCurrentConversationId(nonArchived.id);
+              }
+              return latest;
+            });
+          }, 0);
+        }
+        return { ...c, archived: toggledArchive, updatedAt: new Date().toISOString() };
+      }
+      return c;
+    }));
+  };
+
+  // Delete conversation with confirmation
+  const handleDeleteConversation = (id) => {
+    const conv = conversations.find(c => c.id === id);
+    if (!conv) return;
+    if (window.confirm(`Deseja realmente excluir a conversa "${conv.title}"?`)) {
+      setConversations(prev => {
+        const remaining = prev.filter(c => c.id !== id);
+        if (currentConversationId === id) {
+          if (remaining.length > 0) {
+            const nonArchived = remaining.find(x => !x.archived) || remaining[0];
+            setCurrentConversationId(nonArchived.id);
+          } else {
+            const firstConv = {
+              id: crypto.randomUUID(),
+              title: 'Nova Conversa',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              messages: [],
+              provider: providerSettings.provider,
+              model: providerSettings.model,
+              messageCount: 0,
+              pinned: false,
+              archived: false
+            };
+            setCurrentConversationId(firstConv.id);
+            return [firstConv];
+          }
+        }
+        return remaining;
+      });
+    }
+  };
+
+  // Sort list for history panel: Pinned first, then sorted by updatedAt descending
+  const sortedConversations = useMemo(() => {
+    const filtered = conversations.filter(c => showArchived ? c.archived : !c.archived);
+    return [...filtered].sort((a, b) => {
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+      return new Date(b.updatedAt) - new Date(a.updatedAt);
+    });
+  }, [conversations, showArchived]);
 
   // Validate edited JSON payload on the fly
   useEffect(() => {
@@ -487,7 +778,26 @@ export default function AIAssistant() {
       timestamp: new Date().toISOString()
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    setConversations((latestConvs) => latestConvs.map(c => {
+      if (c.id === currentConversationId) {
+        const updatedMessages = [...c.messages, userMessage];
+        let title = c.title;
+        if (c.messages.length === 0 && updatedMessages.length > 0) {
+          const firstUserMsg = updatedMessages.find(m => m.role === 'user');
+          if (firstUserMsg && (c.title === 'Nova Conversa' || !c.title)) {
+            title = inferTitleFromMessage(firstUserMsg.content);
+          }
+        }
+        return {
+          ...c,
+          messages: updatedMessages,
+          messageCount: updatedMessages.length,
+          title,
+          updatedAt: new Date().toISOString()
+        };
+      }
+      return c;
+    }));
     setLoading(true);
 
     const attachmentsToSend = [...attachments];
@@ -563,7 +873,18 @@ export default function AIAssistant() {
         timestamp: new Date().toISOString()
       };
 
-      setMessages((prev) => [...prev, assistantMessage]);
+      setConversations((latestConvs) => latestConvs.map(c => {
+        if (c.id === currentConversationId) {
+          const updatedMessages = [...c.messages, assistantMessage];
+          return {
+            ...c,
+            messages: updatedMessages,
+            messageCount: updatedMessages.length,
+            updatedAt: new Date().toISOString()
+          };
+        }
+        return c;
+      }));
 
     } catch (err) {
       console.error('[Lyria AI Assistant] Request failure:', err);
@@ -582,8 +903,7 @@ export default function AIAssistant() {
 
   const handleClearHistory = () => {
     if (window.confirm('Deseja realmente limpar o histórico de mensagens local?')) {
-      setMessages([]);
-      localStorage.removeItem('cp_ai_chat_history');
+      updateActiveConversationMessages([]);
       setError(null);
     }
   };
@@ -629,22 +949,21 @@ export default function AIAssistant() {
 
       setActionLogs((prev) => [logEntry, ...prev]);
 
-      setMessages((prev) =>
-        prev.map((msg) => {
-          if (msg.id === messageId && msg.actions) {
-            return {
-              ...msg,
-              actions: msg.actions.map((act) => {
-                if (act.id === action.id) {
-                  return { ...act, status: 'applied', createdItemId: createdItem.id, payload: sanitizedPayload };
-                }
-                return act;
-              })
-            };
-          }
-          return msg;
-        })
-      );
+      const updatedMessages = messages.map((msg) => {
+        if (msg.id === messageId && msg.actions) {
+          return {
+            ...msg,
+            actions: msg.actions.map((act) => {
+              if (act.id === action.id) {
+                return { ...act, status: 'applied', createdItemId: createdItem.id, payload: sanitizedPayload };
+              }
+              return act;
+            })
+          };
+        }
+        return msg;
+      });
+      updateActiveConversationMessages(updatedMessages);
 
       if (refreshAll) refreshAll();
       closeConfirmModal();
@@ -681,22 +1000,21 @@ export default function AIAssistant() {
         prev.map((log) => (log.id === (logId || (logToRevert && logToRevert.id)) ? { ...log, status: 'reverted' } : log))
       );
 
-      setMessages((prev) =>
-        prev.map((msg) => {
-          if (msg.actions) {
-            return {
-              ...msg,
-              actions: msg.actions.map((act) => {
-                if (act.createdItemId === createdItemId || (actionIdInChat && act.id === actionIdInChat)) {
-                  return { ...act, status: 'reverted' };
-                }
-                return act;
-              })
-            };
-          }
-          return msg;
-        })
-      );
+      const updatedMessages = messages.map((msg) => {
+        if (msg.actions) {
+          return {
+            ...msg,
+            actions: msg.actions.map((act) => {
+              if (act.createdItemId === createdItemId || (actionIdInChat && act.id === actionIdInChat)) {
+                return { ...act, status: 'reverted' };
+              }
+              return act;
+            })
+          };
+        }
+        return msg;
+      });
+      updateActiveConversationMessages(updatedMessages);
 
       if (refreshAll) refreshAll();
       alert('Ação revertida com sucesso. O item foi removido do Lyria.');
@@ -707,17 +1025,16 @@ export default function AIAssistant() {
   };
 
   const handleIgnoreAction = (messageId, actionId) => {
-    setMessages((prev) =>
-      prev.map((msg) => {
-        if (msg.id === messageId && msg.actions) {
-          return {
-            ...msg,
-            actions: msg.actions.filter((act) => act.id !== actionId)
-          };
-        }
-        return msg;
-      })
-    );
+    const updatedMessages = messages.map((msg) => {
+      if (msg.id === messageId && msg.actions) {
+        return {
+          ...msg,
+          actions: msg.actions.filter((act) => act.id !== actionId)
+        };
+      }
+      return msg;
+    });
+    updateActiveConversationMessages(updatedMessages);
   };
 
   if (!isAuthenticated) {
@@ -814,6 +1131,98 @@ export default function AIAssistant() {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.3; }
         }
+        .history-sidebar-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.4);
+          z-index: 1000;
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 0.3s ease;
+        }
+        .history-sidebar-overlay.active {
+          opacity: 1;
+          pointer-events: auto;
+        }
+        .history-sidebar {
+          position: fixed;
+          top: 0;
+          left: 0;
+          bottom: 0;
+          width: 320px;
+          background: var(--bg-secondary);
+          border-right: 1px solid var(--border-soft);
+          z-index: 1001;
+          display: flex;
+          flex-direction: column;
+          transform: translateX(-100%);
+          transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+          box-shadow: var(--shadow-lg);
+        }
+        .history-sidebar.active {
+          transform: translateX(0);
+        }
+        @media (max-width: 767px) {
+          .history-sidebar {
+            width: 100% !important;
+            border-right: none;
+          }
+        }
+        .history-item-card {
+          padding: var(--sp-3);
+          border-radius: var(--radius-sm);
+          background: var(--bg-primary);
+          border: 1px solid var(--border-soft);
+          cursor: pointer;
+          transition: all 0.2s;
+          display: flex;
+          flex-direction: column;
+          gap: var(--sp-1);
+          position: relative;
+        }
+        .history-item-card:hover {
+          border-color: var(--accent);
+          background: var(--bg-tertiary);
+        }
+        .history-item-card.active {
+          border-color: var(--accent);
+          background: var(--accent-subtle);
+        }
+        .history-item-actions {
+          display: flex;
+          gap: 8px;
+          position: absolute;
+          right: var(--sp-3);
+          top: var(--sp-3);
+          opacity: 0;
+          transition: opacity 0.2s;
+          background: var(--bg-primary);
+          padding: 2px 6px;
+          border-radius: 4px;
+          border: 1px solid var(--border-soft);
+        }
+        .history-item-card:hover .history-item-actions {
+          opacity: 1;
+        }
+        .history-item-action-btn {
+          background: transparent;
+          border: none;
+          color: var(--text-secondary);
+          cursor: pointer;
+          padding: 2px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .history-item-action-btn:hover {
+          color: var(--accent);
+        }
+        .history-item-action-btn.delete:hover {
+          color: var(--danger);
+        }
       `}</style>
 
       {/* Page Header */}
@@ -830,6 +1239,14 @@ export default function AIAssistant() {
             <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'currentColor' }} />
             {aiStatusLabel.text}
           </span>
+          <button 
+            className="btn-icon" 
+            onClick={() => setIsHistoryOpen(true)} 
+            title="Histórico de Conversas" 
+            style={{ color: 'var(--text-secondary)', padding: '8px' }}
+          >
+            <History size={16} />
+          </button>
           {messages.length > 0 && (
             <button className="btn-icon" onClick={handleClearHistory} title="Limpar Histórico" style={{ color: 'var(--danger)', padding: '8px' }}>
               <Trash2 size={16} />
@@ -892,7 +1309,19 @@ export default function AIAssistant() {
                   </div>
                 </div>
               ) : (
-                messages.map((msg) => (
+                <>
+                  {messages.length > visibleMessagesCount && (
+                    <div style={{ display: 'flex', justifyContent: 'center', width: '100%', marginBottom: 'var(--sp-2)' }}>
+                      <button
+                        onClick={() => setVisibleMessagesCount(prev => prev + 25)}
+                        className="btn-secondary"
+                        style={{ padding: '6px 12px', fontSize: 'var(--fs-xs)', background: 'var(--bg-tertiary)' }}
+                      >
+                        Carregar mensagens anteriores ({messages.length - visibleMessagesCount} restantes)
+                      </button>
+                    </div>
+                  )}
+                  {visibleMessages.map((msg) => (
                   <div
                     key={msg.id}
                     style={{
@@ -1056,8 +1485,9 @@ export default function AIAssistant() {
                       )}
                     </div>
                   </div>
-                ))
-              )}
+                ))}
+              </>
+            )}
 
               {loading && (
                 <div style={{ display: 'flex', justifyContent: 'flex-start', width: '100%' }}>
@@ -1571,6 +2001,201 @@ export default function AIAssistant() {
           </div>
         </div>
       )}
+
+      {/* Slide-over/Modal History Panel */}
+      <div 
+        className={`history-sidebar-overlay ${isHistoryOpen ? 'active' : ''}`} 
+        onClick={() => setIsHistoryOpen(false)}
+      />
+      <div className={`history-sidebar ${isHistoryOpen ? 'active' : ''}`}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 'var(--sp-4)', borderBottom: '1px solid var(--border-soft)' }}>
+          <h3 style={{ fontSize: 'var(--fs-md)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <History size={18} color="var(--accent)" /> Histórico
+          </h3>
+          <button className="btn-icon" onClick={() => setIsHistoryOpen(false)} style={{ padding: 0 }}>
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Action button "Nova Conversa" */}
+        <div style={{ padding: 'var(--sp-4) var(--sp-4) var(--sp-2)' }}>
+          <button
+            onClick={handleNewConversation}
+            className="btn-primary"
+            style={{ width: '100%', padding: '10px', fontSize: 'var(--fs-xs)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+          >
+            <Sparkles size={14} /> Nova Conversa
+          </button>
+        </div>
+
+        {/* Filter Toggle for Archived */}
+        <div style={{ padding: '0 var(--sp-4)' }}>
+          <div style={{ display: 'flex', borderBottom: '1px solid var(--border-soft)', marginBottom: 'var(--sp-3)' }}>
+            <button
+              onClick={() => setShowArchived(false)}
+              style={{
+                flex: 1,
+                padding: '8px',
+                fontSize: 'var(--fs-xs)',
+                fontWeight: !showArchived ? 600 : 400,
+                color: !showArchived ? 'var(--accent)' : 'var(--text-secondary)',
+                borderBottom: !showArchived ? '2px solid var(--accent)' : 'none',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              Ativas
+            </button>
+            <button
+              onClick={() => setShowArchived(true)}
+              style={{
+                flex: 1,
+                padding: '8px',
+                fontSize: 'var(--fs-xs)',
+                fontWeight: showArchived ? 600 : 400,
+                color: showArchived ? 'var(--accent)' : 'var(--text-secondary)',
+                borderBottom: showArchived ? '2px solid var(--accent)' : 'none',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              Arquivadas
+            </button>
+          </div>
+        </div>
+
+        {/* List of Conversations */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', overflowY: 'auto', flex: 1, padding: '0 var(--sp-4) var(--sp-4)' }}>
+          {sortedConversations.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 'var(--sp-6)', color: 'var(--text-tertiary)', fontSize: 'var(--fs-xs)' }}>
+              Nenhuma conversa encontrada.
+            </div>
+          ) : (
+            sortedConversations.map(c => {
+              const isRenaming = renamingId === c.id;
+              const isCurrent = currentConversationId === c.id;
+              
+              return (
+                <div
+                  key={c.id}
+                  className={`history-item-card ${isCurrent ? 'active' : ''}`}
+                  onClick={() => {
+                    if (!isRenaming) {
+                      setCurrentConversationId(c.id);
+                      setIsHistoryOpen(false);
+                    }
+                  }}
+                  style={{ position: 'relative' }}
+                >
+                  {isRenaming ? (
+                    <div style={{ display: 'flex', gap: '4px', width: '100%' }} onClick={e => e.stopPropagation()}>
+                      <input
+                        type="text"
+                        value={renameTitle}
+                        onChange={e => setRenameTitle(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            handleRenameConversation(c.id, renameTitle);
+                            setRenamingId(null);
+                          } else if (e.key === 'Escape') {
+                            setRenamingId(null);
+                          }
+                        }}
+                        autoFocus
+                        style={{
+                          flex: 1,
+                          background: 'var(--bg-secondary)',
+                          border: '1px solid var(--border-soft)',
+                          borderRadius: '4px',
+                          color: 'var(--text-primary)',
+                          fontSize: 'var(--fs-xs)',
+                          padding: '4px 8px',
+                          outline: 'none'
+                        }}
+                      />
+                      <button
+                        className="btn-primary"
+                        onClick={() => {
+                          handleRenameConversation(c.id, renameTitle);
+                          setRenamingId(null);
+                        }}
+                        style={{ padding: '4px 8px', fontSize: '10px' }}
+                      >
+                        Salvar
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Title & Pin indicator */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, fontSize: 'var(--fs-xs)', color: 'var(--text-primary)', paddingRight: '70px' }}>
+                        {c.pinned && <span style={{ color: 'var(--accent)' }}>📌</span>}
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {c.title || 'Nova Conversa'}
+                        </span>
+                      </div>
+                      
+                      {/* Sub-info */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-secondary)' }}>
+                        <span>{getRelativeDateLabel(c.updatedAt)}</span>
+                        <span>{c.messageCount} {c.messageCount === 1 ? 'msg' : 'msgs'}</span>
+                      </div>
+                      
+                      {/* Provider & Model Badges */}
+                      <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
+                        <span style={{ fontSize: '9px', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', padding: '1px 5px', borderRadius: '3px' }}>
+                          {PROVIDER_LABELS[c.provider] || c.provider}
+                        </span>
+                        <span style={{ fontSize: '9px', background: 'var(--bg-tertiary)', color: 'var(--text-tertiary)', padding: '1px 5px', borderRadius: '3px' }}>
+                          {c.model}
+                        </span>
+                      </div>
+
+                      {/* Hover actions */}
+                      <div className="history-item-actions" onClick={e => e.stopPropagation()}>
+                        <button
+                          className="history-item-action-btn"
+                          title={c.pinned ? "Desfixar" : "Fixar"}
+                          onClick={() => handleTogglePin(c.id)}
+                          style={{ color: c.pinned ? 'var(--accent)' : 'inherit' }}
+                        >
+                          <Pin size={12} style={{ transform: c.pinned ? 'rotate(45deg)' : 'none' }} />
+                        </button>
+                        <button
+                          className="history-item-action-btn"
+                          title={c.archived ? "Desarquivar" : "Arquivar"}
+                          onClick={() => handleToggleArchive(c.id)}
+                        >
+                          <Archive size={12} />
+                        </button>
+                        <button
+                          className="history-item-action-btn"
+                          title="Renomear"
+                          onClick={() => {
+                            setRenamingId(c.id);
+                            setRenameTitle(c.title || '');
+                          }}
+                        >
+                          <Edit2 size={12} />
+                        </button>
+                        <button
+                          className="history-item-action-btn delete"
+                          title="Excluir"
+                          onClick={() => handleDeleteConversation(c.id)}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
     </div>
   );
 }
