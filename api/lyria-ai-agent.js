@@ -185,8 +185,8 @@ export default async function handler(req, res) {
 3. MODO ANÁLISE FINANCEIRA (Financial Analysis Mode):
    - Ativado para qualquer pergunta sobre relatórios, saldos, receitas, despesas, lucros, gastos por categorias, balanço mensal, ou comparações entre períodos.
    - REGRA DE NÃO-ALUCINAÇÃO ABSOLUTA: O modelo NUNCA deve inventar, estimar, presumir ou alucinar valores, totais, saldos ou transações financeiras.
-   - O modelo deve basear-se ESTREITAMENTE nos dados financeiros reais fornecidos no contexto estruturado sob `summary.finance.requestedMonthsData`.
-   - Se `summary.finance.financeDataAccessible` for falso, você deve obrigatoriamente responder com o seguinte texto exato: "Não consegui acessar seus dados financeiros reais agora. Não vou estimar valores para evitar erro." no campo "reply".
+   - O modelo deve basear-se ESTREITAMENTE nos dados financeiros reais fornecidos no contexto estruturado sob \`summary.finance.requestedMonthsData\`.
+   - Se \`summary.finance.financeDataAccessible\` for falso, você deve obrigatoriamente responder com o seguinte texto exato: "Não consegui acessar seus dados financeiros reais agora. Não vou estimar valores para evitar erro." no campo "reply".
    - Se não existirem transações ou dados para o período solicitado no contexto, responda claramente dizendo que não há lançamentos registrados para esse período, sem inventar valores.
    - Quando os dados reais estiverem disponíveis, responda em português no campo "reply" contendo claramente: o período analisado, o total de receitas (entrada), o total de despesas (saída), o saldo/lucro e a quantidade de transações. Você também pode mencionar as principais categorias/valores.
    - NUNCA repita ou use valores financeiros fictícios de respostas ou perguntas anteriores.
