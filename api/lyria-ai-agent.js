@@ -278,15 +278,29 @@ IMPORTANTE: Retorne APENAS o JSON puro. Não utilize marcações markdown ou blo
       
       // Add history to model context
       trimmedHistory.forEach(h => {
-        inputPayload.push({
-          role: h.role === 'assistant' ? 'assistant' : 'user',
-          content: [
-            {
-              type: 'input_text',
-              text: h.content || ''
-            }
-          ]
-        });
+        if (!h.role) return;
+        const role = h.role.trim().toLowerCase();
+        if (role === 'assistant') {
+          inputPayload.push({
+            role: 'assistant',
+            content: [
+              {
+                type: 'output_text',
+                text: h.content || ''
+              }
+            ]
+          });
+        } else if (role === 'user') {
+          inputPayload.push({
+            role: 'user',
+            content: [
+              {
+                type: 'input_text',
+                text: h.content || ''
+              }
+            ]
+          });
+        }
       });
 
       const dateInfo = context?.currentDate ? `Data atual de referência: ${context.currentDate}.` : '';
@@ -360,15 +374,31 @@ IMPORTANTE: Retorne APENAS o JSON puro. Não utilize marcações markdown ou blo
       const resJson = await response.json();
       
       // Parse output from Responses API structure
-      if (Array.isArray(resJson.output)) {
+      if (typeof resJson.output_text === 'string' && resJson.output_text.trim()) {
+        rawText = resJson.output_text;
+      } else if (Array.isArray(resJson.output)) {
+        let refusalText = '';
+        let textParts = [];
         for (const item of resJson.output) {
-          if (item.type === 'output_text' && Array.isArray(item.content)) {
+          if (Array.isArray(item.content)) {
             for (const content of item.content) {
-              if (content.type === 'text' && typeof content.text === 'string') {
-                rawText += content.text;
+              if (content.type === 'output_text' && typeof content.text === 'string') {
+                textParts.push(content.text);
+              } else if (content.type === 'text' && typeof content.text === 'string') {
+                textParts.push(content.text);
+              } else if (content.type === 'refusal') {
+                const ref = content.text || content.refusal || '';
+                if (ref) {
+                  refusalText = ref;
+                }
               }
             }
           }
+        }
+        if (textParts.length > 0) {
+          rawText = textParts.join('');
+        } else if (refusalText) {
+          rawText = refusalText;
         }
       }
 
