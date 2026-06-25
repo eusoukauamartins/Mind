@@ -64,7 +64,7 @@ export default async function handler(req, res) {
   const ALLOWED_PROVIDERS = ['gemini', 'openai', 'anthropic', 'xai'];
   const PROVIDER_MODELS = {
     gemini: ['gemini-3.1-pro-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'],
-    openai: ['gpt-5.5', 'gpt-5.5-pro', 'gpt-5.4', 'gpt-5.4-pro', 'gpt-5.4-mini'],
+    openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-5.5', 'gpt-5.5-pro', 'gpt-5.4', 'gpt-5.4-pro', 'gpt-5.4-mini'],
     anthropic: ['claude-fable-5', 'claude-opus-4-8', 'claude-sonnet-4-6', 'claude-haiku-4-5'],
     xai: ['grok-4.3']
   };
@@ -79,16 +79,30 @@ export default async function handler(req, res) {
   }
 
   // Real backend implementation check
-  if (provider !== 'gemini') {
+  if (provider !== 'gemini' && provider !== 'openai') {
     if (hasAudio) {
       return res.status(400).json({ error: `Áudio ainda não está implementado para este provedor.` });
     }
     return res.status(400).json({ error: `Este provedor ainda não está implementado no servidor.` });
   }
 
-  // API Key config check
+  // Provider specific validation
+  if (provider === 'openai') {
+    if (hasAudio) {
+      return res.status(400).json({ error: `Áudio ainda não está implementado para este provedor.` });
+    }
+    const implementedOpenAIModels = ['gpt-4o', 'gpt-4o-mini'];
+    if (!implementedOpenAIModels.includes(model)) {
+      return res.status(400).json({ error: 'Este modelo OpenAI ainda não está implementado no servidor.' });
+    }
+    const openAIApiKey = process.env.OPENAI_API_KEY;
+    if (!openAIApiKey) {
+      return res.status(400).json({ error: `Este provedor ainda não está configurado no servidor.` });
+    }
+  }
+
   const geminiApiKey = process.env.GEMINI_API_KEY;
-  if (!geminiApiKey) {
+  if (provider === 'gemini' && !geminiApiKey) {
     return res.status(400).json({ error: `Este provedor ainda não está configurado no servidor.` });
   }
 
@@ -241,101 +255,200 @@ Módulo "experiments":
 
 IMPORTANTE: Retorne APENAS o JSON puro. Não utilize marcações markdown ou blocos de código em sua resposta.`;
 
-  // Call the real model ID directly as requested
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`;
+  let rawText = '';
 
-  const promptContents = [];
-  
-  // Add history to model context
-  trimmedHistory.forEach(h => {
-    promptContents.push({
-      role: h.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: h.content || '' }]
-    });
-  });
-
-  // Prepare current context metadata for prompt
-  const dateInfo = context?.currentDate ? `Data atual de referência: ${context.currentDate}.` : '';
-  const contextSummary = context?.summary ? `Resumo do estado atual: ${JSON.stringify(context.summary)}.` : '';
-  
-  // Handle empty message text when only audio is sent
-  const messageText = message && typeof message === 'string' && message.trim() ? message : 'Comando de voz recebido.';
-  const userPrompt = `Mensagem do Usuário: "${messageText}"\n${dateInfo}\n${contextSummary}`;
-
-  const userParts = [{ text: userPrompt }];
-
-  // Add image attachments
-  if (Array.isArray(attachments)) {
-    attachments.forEach(att => {
-      userParts.push({
-        inlineData: {
-          mimeType: att.type,
-          data: att.data
-        }
+  if (provider === 'openai') {
+    const openAIApiKey = process.env.OPENAI_API_KEY;
+    const inputPayload = [];
+    
+    // Add history to model context
+    trimmedHistory.forEach(h => {
+      inputPayload.push({
+        role: h.role === 'assistant' ? 'assistant' : 'user',
+        content: h.content || ''
       });
     });
-  }
 
-  // Add audio prompt
-  if (audio && audio.data && audio.type) {
-    const cleanMimeType = audio.type.split(';')[0].trim().toLowerCase();
-    userParts.push({
-      inlineData: {
-        mimeType: cleanMimeType,
-        data: audio.data.replace(/\s/g, '')
-      }
+    const dateInfo = context?.currentDate ? `Data atual de referência: ${context.currentDate}.` : '';
+    const contextSummary = context?.summary ? `Resumo do estado atual: ${JSON.stringify(context.summary)}.` : '';
+    const messageText = message && typeof message === 'string' && message.trim() ? message : 'Comando recebido.';
+    const userPrompt = `Mensagem do Usuário: "${messageText}"\n${dateInfo}\n${contextSummary}`;
+
+    const userContent = [{ type: 'text', text: userPrompt }];
+
+    // Add image attachments
+    if (Array.isArray(attachments)) {
+      attachments.forEach(att => {
+        userContent.push({
+          type: 'image_url',
+          image_url: {
+            url: `data:${att.type};base64,${att.data}`
+          }
+        });
+      });
+    }
+
+    inputPayload.push({
+      role: 'user',
+      content: userContent
     });
-  }
 
-  promptContents.push({
-    role: 'user',
-    parts: userParts
-  });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        contents: promptContents,
-        systemInstruction: {
-          parts: [{ text: systemInstruction }]
+    try {
+      const response = await fetch('https://api.openai.com/v1/responses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${openAIApiKey}`
         },
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.2
-        }
-      })
-    });
+        body: JSON.stringify({
+          model,
+          instructions: systemInstruction,
+          input: inputPayload,
+          max_tokens: 2500,
+          temperature: 0.4,
+          text: {
+            format: {
+              type: 'json_object'
+            }
+          }
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
 
-    if (!response.ok) {
-      let errMessage = 'Ocorreu um erro ao comunicar com a API do provedor de IA.';
-      try {
-        const errorJson = await response.json();
-        if (errorJson.error && errorJson.error.message) {
-          if (errorJson.error.message.includes('not found') || errorJson.error.message.includes('404')) {
-            errMessage = `Este modelo ainda não está implementado no servidor.`;
-          } else {
-            errMessage = `Erro do Provedor: ${errorJson.error.message}`;
+      if (!response.ok) {
+        let errMessage = 'Ocorreu um erro ao comunicar com a API do provedor OpenAI.';
+        try {
+          const errorJson = await response.json();
+          if (errorJson.error && errorJson.error.message) {
+            errMessage = `Erro da OpenAI: ${errorJson.error.message}`;
+          }
+        } catch (e) {}
+        console.error('[Lyria AI Endpoint] OpenAI API error status:', response.status);
+        return res.status(500).json({ error: errMessage });
+      }
+
+      const resJson = await response.json();
+      
+      // Parse output from Responses API structure
+      if (Array.isArray(resJson.output)) {
+        for (const item of resJson.output) {
+          if (item.type === 'output_text' && Array.isArray(item.content)) {
+            for (const content of item.content) {
+              if (content.type === 'text' && typeof content.text === 'string') {
+                rawText += content.text;
+              }
+            }
           }
         }
-      } catch (e) {}
-      console.error('[Lyria AI Endpoint] Provider API error status:', response.status);
-      return res.status(500).json({ error: errMessage });
+      }
+
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        return res.status(400).json({ error: 'A OpenAI demorou para responder. Tente novamente.' });
+      }
+      console.error('[Lyria AI Endpoint] Error calling OpenAI API:', err);
+      return res.status(500).json({ error: 'Não foi possível obter resposta da OpenAI. Tente novamente.' });
     }
 
-    const resJson = await response.json();
-    const rawText = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
+  } else {
+    // Call the real model ID directly as requested
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`;
 
-    if (!rawText) {
-      console.error('[Lyria AI Endpoint] Empty text returned from Gemini API:', JSON.stringify(resJson));
-      return res.status(200).json({
-        reply: 'Não consegui obter uma resposta válida da IA. Tente novamente.',
-        actions: []
+    const promptContents = [];
+    
+    // Add history to model context
+    trimmedHistory.forEach(h => {
+      promptContents.push({
+        role: h.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: h.content || '' }]
+      });
+    });
+
+    // Prepare current context metadata for prompt
+    const dateInfo = context?.currentDate ? `Data atual de referência: ${context.currentDate}.` : '';
+    const contextSummary = context?.summary ? `Resumo do estado atual: ${JSON.stringify(context.summary)}.` : '';
+    
+    // Handle empty message text when only audio is sent
+    const messageText = message && typeof message === 'string' && message.trim() ? message : 'Comando de voz recebido.';
+    const userPrompt = `Mensagem do Usuário: "${messageText}"\n${dateInfo}\n${contextSummary}`;
+
+    const userParts = [{ text: userPrompt }];
+
+    // Add image attachments
+    if (Array.isArray(attachments)) {
+      attachments.forEach(att => {
+        userParts.push({
+          inlineData: {
+            mimeType: att.type,
+            data: att.data
+          }
+        });
       });
     }
+
+    // Add audio prompt
+    if (audio && audio.data && audio.type) {
+      const cleanMimeType = audio.type.split(';')[0].trim().toLowerCase();
+      userParts.push({
+        inlineData: {
+          mimeType: cleanMimeType,
+          data: audio.data.replace(/\s/g, '')
+        }
+      });
+    }
+
+    promptContents.push({
+      role: 'user',
+      parts: userParts
+    });
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          contents: promptContents,
+          systemInstruction: {
+            parts: [{ text: systemInstruction }]
+          },
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.2
+          }
+        })
+      });
+
+      if (!response.ok) {
+        let errMessage = 'Ocorreu um erro ao comunicar com a API do provedor de IA.';
+        try {
+          const errorJson = await response.json();
+          if (errorJson.error && errorJson.error.message) {
+            if (errorJson.error.message.includes('not found') || errorJson.error.message.includes('404')) {
+              errMessage = `Este modelo ainda não está implementado no servidor.`;
+            } else {
+              errMessage = `Erro do Provedor: ${errorJson.error.message}`;
+            }
+          }
+        } catch (e) {}
+        console.error('[Lyria AI Endpoint] Provider API error status:', response.status);
+        return res.status(500).json({ error: errMessage });
+      }
+
+      const resJson = await response.json();
+      rawText = resJson.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    } catch (err) {
+      console.error('[Lyria AI Endpoint] Error calling Gemini API:', err);
+      return res.status(500).json({ error: 'Server encountered an error invoking the AI model.' });
+    }
+  }
 
     // 9. Parsing and Normalization
     let parsedResult;

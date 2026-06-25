@@ -12,14 +12,14 @@ import { getToday } from '../utils/helpers';
 
 const PROVIDER_MODELS = {
   gemini: ['gemini-3.1-pro-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'],
-  openai: ['gpt-5.5', 'gpt-5.5-pro', 'gpt-5.4', 'gpt-5.4-pro', 'gpt-5.4-mini'],
+  openai: ['gpt-4o', 'gpt-4o-mini'],
   anthropic: ['claude-fable-5', 'claude-opus-4-8', 'claude-sonnet-4-6', 'claude-haiku-4-5'],
   xai: ['grok-4.3']
 };
 
 const PROVIDER_LABELS = {
   gemini: 'Google Gemini',
-  openai: 'OpenAI (Em Breve)',
+  openai: 'OpenAI',
   anthropic: 'Anthropic (Em Breve)',
   xai: 'xAI Grok (Em Breve)'
 };
@@ -57,6 +57,7 @@ export default function AIAssistant() {
   });
 
   const [statusData, setStatusData] = useState(null);
+  const [statusError, setStatusError] = useState(null);
   const [attachments, setAttachments] = useState([]); // [{ name, type, size, data (base64) }]
   
   // Audio state variables
@@ -95,9 +96,24 @@ export default function AIAssistant() {
         'Authorization': `Bearer ${session.access_token}`
       }
     })
-      .then(res => res.json())
-      .then(data => setStatusData(data))
-      .catch(err => console.error('[Lyria AI Status] Error loading status:', err));
+      .then(res => {
+        if (!res.ok) {
+          throw new Error('Não foi possível carregar status dos provedores.');
+        }
+        return res.json();
+      })
+      .then(data => {
+        if (data && data.providers) {
+          setStatusData(data);
+          setStatusError(null);
+        } else if (data && data.error) {
+          throw new Error(data.error);
+        }
+      })
+      .catch(err => {
+        console.error('[Lyria AI Status] Error loading status:', err);
+        setStatusError('Não foi possível carregar status dos provedores.');
+      });
   }, [isAuthenticated, session]);
 
   // Clean up media recorder stream tracks on unmount
@@ -1260,7 +1276,7 @@ export default function AIAssistant() {
                   className="form-select-custom"
                 >
                   <option value="gemini">Google Gemini</option>
-                  <option value="openai">OpenAI (Indisponível)</option>
+                  <option value="openai">OpenAI</option>
                   <option value="anthropic">Anthropic (Indisponível)</option>
                   <option value="xai">xAI Grok (Indisponível)</option>
                 </select>
@@ -1283,34 +1299,43 @@ export default function AIAssistant() {
 
               {/* Server connection status details */}
               <div style={{ fontSize: '11px', background: 'var(--bg-primary)', border: '1px solid var(--border-soft)', padding: '8px 10px', borderRadius: '4px', marginTop: '4px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Status no Servidor:</span>
-                  <span style={{ fontWeight: 600, color: currentProviderConfig?.configured ? '#2ecc71' : '#e74c3c' }}>
-                    {currentProviderConfig?.configured ? 'Configurado' : 'Não Configurado'}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Status Impl.:</span>
-                  <span style={{ fontWeight: 600, color: currentProviderConfig?.implemented ? '#2ecc71' : 'var(--text-tertiary)' }}>
-                    {currentProviderConfig?.implemented ? 'Pronto (V1)' : 'Indisponível'}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Entrada de Imagem:</span>
-                  <span style={{ fontWeight: 600, color: currentProviderConfig?.implemented && currentProviderConfig?.imageInput ? '#2ecc71' : 'var(--text-tertiary)' }}>
-                    {currentProviderConfig?.implemented && currentProviderConfig?.imageInput ? 'Suportado' : 'Não Suportado'}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Entrada de Áudio:</span>
-                  <span style={{ fontWeight: 600, color: currentProviderConfig?.implemented && currentProviderConfig?.audioInput ? '#2ecc71' : 'var(--text-tertiary)' }}>
-                    {currentProviderConfig?.implemented && currentProviderConfig?.audioInput ? 'Suportado' : 'Não Suportado'}
-                  </span>
-                </div>
+                {statusError ? (
+                  <div style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 500 }}>
+                    <AlertCircle size={12} />
+                    <span>{statusError}</span>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Status no Servidor:</span>
+                      <span style={{ fontWeight: 600, color: currentProviderConfig?.configured ? '#2ecc71' : '#e74c3c' }}>
+                        {currentProviderConfig?.configured ? 'Configurado' : 'Não Configurado'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Status Impl.:</span>
+                      <span style={{ fontWeight: 600, color: currentProviderConfig?.implemented ? '#2ecc71' : 'var(--text-tertiary)' }}>
+                        {currentProviderConfig?.implemented ? 'Pronto (V1)' : 'Indisponível'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Entrada de Imagem:</span>
+                      <span style={{ fontWeight: 600, color: currentProviderConfig?.implemented && currentProviderConfig?.imageInput ? '#2ecc71' : 'var(--text-tertiary)' }}>
+                        {currentProviderConfig?.implemented && currentProviderConfig?.imageInput ? 'Suportado' : 'Não Suportado'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Entrada de Áudio:</span>
+                      <span style={{ fontWeight: 600, color: currentProviderConfig?.implemented && currentProviderConfig?.audioInput ? '#2ecc71' : 'var(--text-tertiary)' }}>
+                        {currentProviderConfig?.implemented && currentProviderConfig?.audioInput ? 'Suportado' : 'Não Suportado'}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
               
               {/* controlled warning for unimplemented providers/models */}
-              {providerSettings.provider !== 'gemini' && (
+              {providerSettings.provider !== 'gemini' && providerSettings.provider !== 'openai' && (
                 <div style={{ display: 'flex', gap: '6px', fontSize: '11px', background: 'rgba(231, 76, 60, 0.05)', border: '1px solid rgba(231, 76, 60, 0.2)', color: '#e74c3c', padding: '8px', borderRadius: '4px', marginTop: '4px' }}>
                   <AlertCircle size={14} style={{ flexShrink: 0, marginTop: '2px' }} />
                   <span>Este modelo ainda não está implementado no servidor. O endpoint retornará erro controlado se usado.</span>
