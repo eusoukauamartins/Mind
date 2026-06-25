@@ -78,7 +78,7 @@ export default async function handler(req, res) {
   // 9. Gemini API key verification (never expose env vars to client)
   const geminiApiKey = getEnv('GEMINI_API_KEY');
   if (!geminiApiKey) {
-    return res.status(400).json({ error: 'Este provedor ainda não está configurado no servidor.' });
+    return res.status(400).json({ error: 'Chave de API do Gemini (transcrição) não configurada no servidor.' });
   }
 
   // Call gemini-2.5-flash for cost-effective, fast, and high-accuracy transcription

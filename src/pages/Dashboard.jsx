@@ -841,26 +841,33 @@ export default function Dashboard() {
         return cB.localeCompare(cA);
       });
 
-      let selectedRewardItem = null;
-      let widgetStatusType = 'none'; // 'incomplete', 'ready', 'none'
+      // Sort ready rewards by priority, deadline, and creation date
+      ready.sort((a, b) => {
+        const pA = priorityWeight[a.reward.priority] || 2;
+        const pB = priorityWeight[b.reward.priority] || 2;
+        if (pA !== pB) return pB - pA;
+        const dA = a.reward.deadline;
+        const dB = b.reward.deadline;
+        if (dA && dB) {
+          if (dA !== dB) return dA.localeCompare(dB);
+        } else if (dA) {
+          return -1;
+        } else if (dB) {
+          return 1;
+        }
+        const cA = a.reward.createdAt || '';
+        const cB = b.reward.createdAt || '';
+        return cB.localeCompare(cA);
+      });
 
-      if (inProgress.length > 0) {
-        selectedRewardItem = inProgress[0];
-        widgetStatusType = 'incomplete';
-      } else if (ready.length > 0) {
-        selectedRewardItem = ready[0];
-        widgetStatusType = 'ready';
-      }
-
-      const nextReward = selectedRewardItem ? selectedRewardItem.reward : null;
-      const nextProgress = selectedRewardItem ? selectedRewardItem.progress : -1;
+      const sortedItems = [...ready, ...inProgress].slice(0, 3);
 
       return (
         <div className="card h-100" onClick={() => navigate('/recompensas')} style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' }}>
               <Gift size={20} style={{ color: 'var(--accent)' }} />
-              <span className="card-title" style={{ marginBottom: 0, fontSize: 'var(--fs-lg)' }}>Próxima Recompensa</span>
+              <span className="card-title" style={{ marginBottom: 0, fontSize: 'var(--fs-lg)' }}>Próximas Recompensas</span>
             </div>
             {dashboardRewards.length > 0 && (
               <span className="badge badge-accent" style={{ fontSize: '11px', padding: '2px 8px' }}>
@@ -869,35 +876,56 @@ export default function Dashboard() {
             )}
           </div>
  
-          {nextReward ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)', flex: 1, justifyContent: 'center' }}>
-              <div>
-                <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--accent)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '2px' }}>
-                  {widgetStatusType === 'incomplete' ? 'Próxima recompensa em progresso' : 'Recompensa pronta para resgatar'}
-                </div>
-                <div style={{ fontWeight: 600, fontSize: 'var(--fs-base)', color: 'var(--text-primary)', marginBottom: '4px' }}>
-                  {nextReward.title}
-                </div>
-                <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-secondary)' }}>
-                  Categoria: {nextReward.category}
-                </div>
-              </div>
- 
-              <div style={{ background: 'var(--bg-tertiary)', padding: 'var(--sp-3)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 'var(--fs-xs)', marginBottom: '6px' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>{nextProgress}% concluído</span>
-                  <span style={{ fontWeight: 600, color: 'var(--accent)' }}>
-                    {(() => {
-                      const info = getProgressInfo(nextReward);
-                      const missing = info.total - info.completed;
-                      return missing === 1 ? 'Falta 1 condição' : `Faltam ${missing} condições`;
-                    })()}
-                  </span>
-                </div>
-                <div style={{ height: '6px', background: 'var(--bg-primary)', borderRadius: '3px', overflow: 'hidden' }}>
-                  <div style={{ width: `${nextProgress}%`, height: '100%', background: 'var(--accent)' }} />
-                </div>
-              </div>
+          {sortedItems.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)', flex: 1, justifyContent: 'center' }}>
+              {sortedItems.map(item => {
+                const r = item.reward;
+                const progress = item.progress;
+                const isReady = r.status === 'desbloqueada' || progress === 100;
+                
+                return (
+                  <div key={r.id} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 'var(--sp-2)' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 'var(--fs-sm)', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.title}>
+                          {r.title}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                          Categoria: {r.category}
+                        </div>
+                      </div>
+                      <span style={{
+                        fontSize: '9px',
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        background: isReady ? 'var(--success-subtle)' : 'var(--accent-subtle)',
+                        color: isReady ? 'var(--success)' : 'var(--accent)',
+                        flexShrink: 0
+                      }}>
+                        {isReady ? 'Resgatar' : 'Em progresso'}
+                      </span>
+                    </div>
+
+                    <div style={{ background: 'var(--bg-tertiary)', padding: 'var(--sp-2) var(--sp-3)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-soft)', marginTop: '2px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10px', marginBottom: '4px' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>{progress}% concluído</span>
+                        <span style={{ fontWeight: 500, color: 'var(--text-tertiary)' }}>
+                          {(() => {
+                            const info = getProgressInfo(r);
+                            const missing = info.total - info.completed;
+                            return missing === 1 ? 'Falta 1 condição' : `Faltam ${missing} condições`;
+                          })()}
+                        </span>
+                      </div>
+                      <div style={{ height: '4px', background: 'var(--bg-primary)', borderRadius: '2px', overflow: 'hidden' }}>
+                        <div style={{ width: `${progress}%`, height: '100%', background: isReady ? 'var(--success)' : 'var(--accent)' }} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: 'var(--sp-3)', padding: 'var(--sp-4)', border: '1px dashed var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-tertiary)', textAlign: 'center' }}>

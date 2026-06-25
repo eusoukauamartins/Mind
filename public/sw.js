@@ -1,4 +1,5 @@
-const CACHE_NAME = 'lyria-static-v2';
+const CACHE_NAME = 'lyria-static-v3';
+console.log('[Lyria PWA] Service Worker loaded. Cache version:', CACHE_NAME);
 
 // Dynamic caching service worker.
 // Uses Network-First for documents/routes (to prevent version trapping on new deployments).

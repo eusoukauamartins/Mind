@@ -161,6 +161,7 @@ export default function AIAssistant() {
   const [renamingId, setRenamingId] = useState(null);
   const [renameTitle, setRenameTitle] = useState('');
   const [visibleMessagesCount, setVisibleMessagesCount] = useState(25);
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
 
   const visibleMessages = useMemo(() => {
     return messages.slice(-visibleMessagesCount);
@@ -1068,16 +1069,35 @@ export default function AIAssistant() {
           min-height: 520px;
           overflow: hidden;
         }
+        #ai-toggle-sidebar-btn {
+          display: none !important;
+        }
         @media (max-width: 960px) {
+          #ai-toggle-sidebar-btn {
+            display: flex !important;
+          }
           .ai-hub-grid {
-            grid-template-columns: 1fr;
-            height: calc(100dvh - 150px);
+            display: flex;
+            flex-direction: column;
+            height: calc(100dvh - 170px);
             min-height: 0;
+            overflow: hidden;
+            gap: 0;
+          }
+          .ai-chat-workspace {
+            display: ${showMobileSidebar ? 'none' : 'flex'} !important;
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+            height: 100%;
           }
           .ai-config-sidebar {
-            height: auto;
-            overflow-y: visible;
+            display: ${showMobileSidebar ? 'flex' : 'none'} !important;
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
             padding-right: 0;
+            height: 100%;
           }
         }
         @media (max-width: 768px) {
@@ -1309,6 +1329,21 @@ export default function AIAssistant() {
             <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'currentColor' }} />
             {aiStatusLabel.text}
           </span>
+          <button 
+            className="btn btn-secondary" 
+            onClick={() => setShowMobileSidebar(!showMobileSidebar)}
+            style={{ 
+              display: 'none', 
+              alignItems: 'center', 
+              gap: 'var(--sp-1)',
+              fontSize: 'var(--fs-xs)',
+              padding: '6px 12px'
+            }}
+            id="ai-toggle-sidebar-btn"
+          >
+            {showMobileSidebar ? <Sparkles size={12} /> : <Activity size={12} />}
+            <span>{showMobileSidebar ? 'Ver Chat' : 'Painel'}</span>
+          </button>
           <button 
             className="btn-icon" 
             onClick={() => setIsHistoryOpen(true)} 

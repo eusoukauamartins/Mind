@@ -56,7 +56,7 @@ export default async function handler(req, res) {
           configured: hasGemini,
           implemented: true,
           imageInput: true,
-          audioInput: true
+          audioInput: hasGemini
         },
         openai: {
           configured: hasOpenAI,
@@ -64,7 +64,7 @@ export default async function handler(req, res) {
           models: ["gpt-4o", "gpt-4o-mini"],
           defaultModel: "gpt-4o",
           imageInput: true,
-          audioInput: false
+          audioInput: hasGemini
         },
         anthropic: {
           configured: hasAnthropic,

@@ -4,7 +4,8 @@ import Modal from '../components/Modal';
 import EmptyState from '../components/EmptyState';
 import { 
   Gift, Trophy, Plus, Trash2, Edit2, Archive, CheckCircle2, 
-  Circle, AlertTriangle, Calendar, Award, DollarSign, Clock, HelpCircle, ArrowRight
+  Circle, AlertTriangle, Calendar, Award, DollarSign, Clock, HelpCircle, ArrowRight,
+  Pin
 } from 'lucide-react';
 import { formatCurrency, getToday } from '../utils/helpers';
 
@@ -284,7 +285,8 @@ export default function Recompensas() {
       // Archive
       updateItem('rewards', reward.id, { 
         status: 'arquivada', 
-        archivedAt: new Date().toISOString() 
+        archivedAt: new Date().toISOString(),
+        showOnDashboard: false
       });
     }
   };
@@ -292,7 +294,8 @@ export default function Recompensas() {
   const handleRedeem = (reward) => {
     updateItem('rewards', reward.id, { 
       status: 'resgatada', 
-      redeemedAt: new Date().toISOString() 
+      redeemedAt: new Date().toISOString(),
+      showOnDashboard: false
     });
   };
 
@@ -302,6 +305,20 @@ export default function Recompensas() {
     updateItem('rewards', reward.id, {
       status: restoredStatus,
       redeemedAt: ''
+    });
+  };
+
+  const handleTogglePin = (reward) => {
+    const isCurrentlyPinned = reward.showOnDashboard === true;
+    if (!isCurrentlyPinned) {
+      const pinnedCount = rewards.filter(r => r.showOnDashboard && r.status !== 'resgatada' && r.status !== 'arquivada').length;
+      if (pinnedCount >= 3) {
+        alert("Você já selecionou 3 recompensas para a Dashboard.");
+        return;
+      }
+    }
+    updateItem('rewards', reward.id, {
+      showOnDashboard: !isCurrentlyPinned
     });
   };
 
@@ -423,6 +440,29 @@ export default function Recompensas() {
             {reward.category}
           </span>
           <div style={{ display: 'flex', gap: 'var(--sp-2)', alignItems: 'center' }}>
+            {reward.status !== 'resgatada' && reward.status !== 'arquivada' && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleTogglePin(reward);
+                }}
+                title={reward.showOnDashboard ? "Remover da Dashboard" : "Mostrar na Dashboard"}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: '4px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: reward.showOnDashboard ? 'var(--accent)' : 'var(--text-tertiary)',
+                  transition: 'color var(--transition-fast)',
+                  marginRight: '2px'
+                }}
+              >
+                <Pin size={14} fill={reward.showOnDashboard ? 'currentColor' : 'none'} style={{ transform: reward.showOnDashboard ? 'none' : 'rotate(-45deg)' }} />
+              </button>
+            )}
             <span className={`badge badge-${reward.priority}`} style={{ fontSize: '9px', textTransform: 'uppercase' }}>
               {reward.priority}
             </span>
@@ -931,7 +971,17 @@ export default function Recompensas() {
               id="showOnDashboard"
               type="checkbox" 
               checked={form.showOnDashboard || false} 
-              onChange={e => setForm({ ...form, showOnDashboard: e.target.checked })} 
+              onChange={e => {
+                const isChecking = e.target.checked;
+                if (isChecking) {
+                  const pinnedCount = rewards.filter(r => r.showOnDashboard && r.status !== 'resgatada' && r.status !== 'arquivada' && r.id !== editing).length;
+                  if (pinnedCount >= 3) {
+                    alert("Você já selecionou 3 recompensas para a Dashboard.");
+                    return;
+                  }
+                }
+                setForm({ ...form, showOnDashboard: e.target.checked });
+              }}
               style={{ width: '16px', height: '16px', cursor: 'pointer' }}
             />
             <label htmlFor="showOnDashboard" className="form-label" style={{ marginBottom: 0, cursor: 'pointer', fontWeight: 500 }}>
