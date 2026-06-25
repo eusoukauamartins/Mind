@@ -341,7 +341,7 @@ IMPORTANTE: Retorne APENAS o JSON puro. Não utilize marcações markdown ou blo
       const dateInfo = context?.currentDate ? `Data atual de referência: ${context.currentDate}.` : '';
       const contextSummary = context?.summary ? `Resumo do estado atual: ${JSON.stringify(context.summary)}.` : '';
       const messageText = message && typeof message === 'string' && message.trim() ? message : 'Comando recebido.';
-      const userPrompt = `Mensagem do Usuário: "${messageText}"\n${dateInfo}\n${contextSummary}`;
+      const userPrompt = `Responda obrigatoriamente em json válido, seguindo exatamente o envelope definido nas instruções.\nMensagem do Usuário: "${messageText}"\n${dateInfo}\n${contextSummary}`;
 
       const userContent = [{ type: 'input_text', text: userPrompt }];
 
@@ -440,10 +440,10 @@ IMPORTANTE: Retorne APENAS o JSON puro. Não utilize marcações markdown ou blo
         }
 
         // Instrumentation
-        const inputTokens = resJson.usage?.prompt_tokens || 0;
-        const outputTokens = resJson.usage?.completion_tokens || 0;
+        const inputTokens = resJson.usage?.input_tokens || 0;
+        const outputTokens = resJson.usage?.output_tokens || 0;
         const totalTokens = resJson.usage?.total_tokens || 0;
-        const cachedTokens = resJson.usage?.prompt_tokens_details?.cached_tokens || 0;
+        const cachedTokens = resJson.usage?.input_tokens_details?.cached_tokens || 0;
 
         const systemPromptChars = typeof systemInstruction === 'string' ? systemInstruction.length : 0;
         const historyChars = JSON.stringify(inputPayload.slice(0, -1)).length;

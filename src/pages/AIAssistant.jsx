@@ -1064,34 +1064,70 @@ export default function AIAssistant() {
           grid-template-columns: 1fr 340px;
           gap: var(--sp-4);
           width: 100%;
-          height: calc(100vh - 190px);
+          height: calc(100dvh - 190px);
           min-height: 520px;
+          overflow: hidden;
         }
         @media (max-width: 960px) {
           .ai-hub-grid {
             grid-template-columns: 1fr;
-            height: auto;
+            height: calc(100dvh - 150px);
             min-height: 0;
+          }
+          .ai-config-sidebar {
+            height: auto;
+            overflow-y: visible;
+            padding-right: 0;
+          }
+        }
+        @media (max-width: 768px) {
+          .ai-hub-grid {
+            height: calc(100dvh - 120px);
+          }
+          .ai-message-bubble-wrap {
+            max-width: 92%;
           }
         }
         .ai-chat-workspace {
           display: flex;
           flex-direction: column;
-          gap: var(--sp-4);
           min-width: 0;
+          min-height: 0;
           height: 100%;
+          overflow: hidden;
         }
-        @media (max-width: 960px) {
-          .ai-chat-workspace {
-            height: calc(100vh - 200px);
-            min-height: 480px;
-          }
+        .ai-chat-card {
+          flex: 1;
+          min-height: 0;
+          height: 100%;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
         }
-        @media (max-width: 768px) {
-          .ai-chat-workspace {
-            height: calc(100vh - 240px);
-            min-height: 400px;
-          }
+        .ai-message-list {
+          flex: 1;
+          min-height: 0;
+          overflow-y: auto;
+          overflow-x: hidden;
+          -webkit-overflow-scrolling: touch;
+          overscroll-behavior: contain;
+        }
+        .ai-composer {
+          flex-shrink: 0;
+        }
+        .ai-message-row {
+          min-width: 0;
+          max-width: 100%;
+        }
+        .ai-message-bubble-wrap {
+          min-width: 0;
+          max-width: 85%;
+        }
+        .ai-message-bubble {
+          max-width: 100%;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+          white-space: pre-wrap;
         }
         .ai-config-sidebar {
           display: flex;
@@ -1100,13 +1136,6 @@ export default function AIAssistant() {
           height: 100%;
           overflow-y: auto;
           padding-right: 4px;
-        }
-        @media (max-width: 960px) {
-          .ai-config-sidebar {
-            height: auto;
-            overflow-y: visible;
-            padding-right: 0;
-          }
         }
         .status-badge {
           display: inline-flex;
@@ -1302,10 +1331,10 @@ export default function AIAssistant() {
         {/* Left Side: Chat Workspace */}
         <div className="ai-chat-workspace">
           
-          <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0, border: '1px solid var(--border-soft)', background: 'var(--bg-secondary)', minHeight: 0 }}>
+          <div className="card ai-chat-card" style={{ padding: 0, border: '1px solid var(--border-soft)', background: 'var(--bg-secondary)' }}>
             
             {/* Scrollable Message Box */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
+            <div className="ai-message-list" style={{ padding: 'var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
               {messages.length === 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-secondary)', textAlign: 'center', padding: 'var(--sp-6)', margin: 'auto 0' }}>
                   <Bot size={48} color="var(--accent)" style={{ opacity: 0.8, marginBottom: 'var(--sp-3)' }} />
@@ -1365,22 +1394,23 @@ export default function AIAssistant() {
                   {visibleMessages.map((msg) => (
                   <div
                     key={msg.id}
+                    className="ai-message-row"
                     style={{
                       display: 'flex',
                       justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
                       width: '100%'
                     }}
                   >
-                    <div style={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
+                    <div className="ai-message-bubble-wrap" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
                       
                       {/* Message Bubble container */}
                       <div
+                        className="ai-message-bubble"
                         style={{
                           padding: 'var(--sp-3) var(--sp-4)',
                           borderRadius: 'var(--radius-md)',
                           fontSize: 'var(--fs-sm)',
                           lineHeight: '1.5',
-                          whiteSpace: 'pre-wrap',
                           background: msg.role === 'user' ? 'var(--accent)' : 'var(--bg-tertiary)',
                           color: msg.role === 'user' ? 'white' : 'var(--text-primary)',
                           border: msg.role === 'user' ? 'none' : '1px solid var(--border-soft)'
@@ -1544,7 +1574,7 @@ export default function AIAssistant() {
 
             {/* Error Message Panel */}
             {error && (
-              <div style={{ padding: 'var(--sp-3) var(--sp-4)', background: 'var(--danger-subtle)', borderTop: '1px solid var(--border-soft)', color: 'var(--danger)', fontSize: 'var(--fs-xs)', display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
+              <div style={{ padding: 'var(--sp-3) var(--sp-4)', background: 'var(--danger-subtle)', borderTop: '1px solid var(--border-soft)', color: 'var(--danger)', fontSize: 'var(--fs-xs)', display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', flexShrink: 0 }}>
                 <AlertCircle size={14} style={{ flexShrink: 0 }} />
                 <span style={{ flex: 1 }}>{error}</span>
               </div>
@@ -1552,7 +1582,7 @@ export default function AIAssistant() {
 
             {/* Selected image previews */}
             {attachments.length > 0 && (
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', padding: '8px var(--sp-4)', background: 'var(--bg-secondary)', borderTop: '1px solid var(--border-soft)' }}>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', padding: '8px var(--sp-4)', background: 'var(--bg-secondary)', borderTop: '1px solid var(--border-soft)', flexShrink: 0 }}>
                 {attachments.map((att, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-soft)', padding: '4px 8px', borderRadius: '4px', fontSize: '11px' }}>
                     <span>🖼️ {att.name}</span>
@@ -1570,7 +1600,7 @@ export default function AIAssistant() {
 
             {/* Voice Preview Player Bar */}
             {recordedAudio && (
-              <div style={{ display: 'flex', gap: 'var(--sp-3)', alignItems: 'center', padding: '10px var(--sp-4)', background: 'var(--bg-secondary)', borderTop: '1px solid var(--border-soft)', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 'var(--sp-3)', alignItems: 'center', padding: '10px var(--sp-4)', background: 'var(--bg-secondary)', borderTop: '1px solid var(--border-soft)', flexWrap: 'wrap', flexShrink: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--fs-xs)', color: 'var(--text-primary)' }}>
                   <span>🎙️ Áudio:</span>
                   <strong>{recordedAudio.name}</strong>
@@ -1650,7 +1680,7 @@ export default function AIAssistant() {
 
             {/* Input Text Area Box */}
             {isRecording ? (
-              <div style={{ padding: 'var(--sp-3)', borderTop: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)', display: 'flex', gap: 'var(--sp-3)', alignItems: 'center', flexShrink: 0 }}>
+              <div className="ai-composer" style={{ padding: 'var(--sp-3)', borderTop: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)', display: 'flex', gap: 'var(--sp-3)', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--danger)', fontSize: 'var(--fs-sm)', fontWeight: 600, flex: 1 }}>
                   <span className="blink-anim" style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--danger)', display: 'inline-block' }} />
                   <span>Gravando... ({formatTimer(audioDuration)})</span>
@@ -1665,7 +1695,7 @@ export default function AIAssistant() {
                 </button>
               </div>
             ) : (
-              <div style={{ padding: 'var(--sp-3)', borderTop: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)', display: 'flex', gap: 'var(--sp-2)', alignItems: 'center', flexShrink: 0 }}>
+              <div className="ai-composer" style={{ padding: 'var(--sp-3)', borderTop: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)', display: 'flex', gap: 'var(--sp-2)', alignItems: 'center' }}>
                 
                 <input
                   type="file"
