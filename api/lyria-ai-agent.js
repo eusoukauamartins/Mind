@@ -273,78 +273,89 @@ IMPORTANTE: Retorne APENAS o JSON puro. Não utilize marcações markdown ou blo
 
   try {
     if (provider === 'openai') {
-    const openAIApiKey = getEnv('OPENAI_API_KEY');
-    const inputPayload = [];
-    
-    // Add history to model context
-    trimmedHistory.forEach(h => {
-      inputPayload.push({
-        role: h.role === 'assistant' ? 'assistant' : 'user',
-        content: h.content || ''
-      });
-    });
-
-    const dateInfo = context?.currentDate ? `Data atual de referência: ${context.currentDate}.` : '';
-    const contextSummary = context?.summary ? `Resumo do estado atual: ${JSON.stringify(context.summary)}.` : '';
-    const messageText = message && typeof message === 'string' && message.trim() ? message : 'Comando recebido.';
-    const userPrompt = `Mensagem do Usuário: "${messageText}"\n${dateInfo}\n${contextSummary}`;
-
-    const userContent = [{ type: 'text', text: userPrompt }];
-
-    // Add image attachments
-    if (Array.isArray(attachments)) {
-      attachments.forEach(att => {
-        userContent.push({
-          type: 'image_url',
-          image_url: {
-            url: `data:${att.type};base64,${att.data}`
-          }
+      const openAIApiKey = getEnv('OPENAI_API_KEY');
+      const inputPayload = [];
+      
+      // Add history to model context
+      trimmedHistory.forEach(h => {
+        inputPayload.push({
+          role: h.role === 'assistant' ? 'assistant' : 'user',
+          content: [
+            {
+              type: 'input_text',
+              text: h.content || ''
+            }
+          ]
         });
       });
-    }
 
-    inputPayload.push({
-      role: 'user',
-      content: userContent
-    });
+      const dateInfo = context?.currentDate ? `Data atual de referência: ${context.currentDate}.` : '';
+      const contextSummary = context?.summary ? `Resumo do estado atual: ${JSON.stringify(context.summary)}.` : '';
+      const messageText = message && typeof message === 'string' && message.trim() ? message : 'Comando recebido.';
+      const userPrompt = `Mensagem do Usuário: "${messageText}"\n${dateInfo}\n${contextSummary}`;
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
+      const userContent = [{ type: 'input_text', text: userPrompt }];
 
-    try {
-      const response = await fetch('https://api.openai.com/v1/responses', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${openAIApiKey}`
-        },
-        body: JSON.stringify({
-          model,
-          instructions: systemInstruction,
-          input: inputPayload,
-          max_tokens: 2500,
-          temperature: 0.4,
-          text: {
-            format: {
-              type: 'json_object'
-            }
-          }
-        }),
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        let errMessage = 'Ocorreu um erro ao comunicar com a API do provedor OpenAI.';
-        try {
-          const errorJson = await response.json();
-          if (errorJson.error && errorJson.error.message) {
-            errMessage = `Erro da OpenAI: ${errorJson.error.message}`;
-          }
-        } catch (e) {}
-        console.error('[Lyria AI Endpoint] OpenAI API error status:', response.status);
-        return res.status(500).json({ error: errMessage });
+      // Add image attachments
+      if (Array.isArray(attachments)) {
+        attachments.forEach(att => {
+          userContent.push({
+            type: 'input_image',
+            image_url: `data:${att.type};base64,${att.data}`
+          });
+        });
       }
+
+      inputPayload.push({
+        role: 'user',
+        content: userContent
+      });
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+      try {
+        const response = await fetch('https://api.openai.com/v1/responses', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${openAIApiKey}`
+          },
+          body: JSON.stringify({
+            model,
+            instructions: systemInstruction,
+            input: inputPayload,
+            max_output_tokens: 2500,
+            temperature: 0.4,
+            text: {
+              format: {
+                type: 'json_object'
+              }
+            }
+          }),
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const statusCode = response.status;
+          let errMessage = 'Ocorreu um erro ao comunicar com a API do provedor OpenAI.';
+          let errType = '';
+          try {
+            const errorJson = await response.json();
+            if (errorJson.error) {
+              if (errorJson.error.message) {
+                errMessage = errorJson.error.message;
+              }
+              if (errorJson.error.type) {
+                errType = errorJson.error.type;
+              }
+            }
+          } catch (e) {}
+          console.error(`[Lyria AI Endpoint] OpenAI API error status: ${statusCode}, message: ${errMessage}, type: ${errType}`);
+          const formattedError = `Erro da OpenAI (Status ${statusCode}${errType ? `, Tipo: ${errType}` : ''}): ${errMessage}`;
+          return res.status(statusCode || 500).json({ error: formattedError });
+        }
 
       const resJson = await response.json();
       
