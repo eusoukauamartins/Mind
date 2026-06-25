@@ -168,7 +168,19 @@ export default async function handler(req, res) {
 
   // 8. Build Prompt & System Instructions
   const systemInstruction = `Você é o assistente inteligente integrado do aplicativo Lyria, um organizador pessoal focado em produtividade, finanças e foco estratégico.
-Sua tarefa é interagir com o usuário em português e propor ações estruturadas sempre que o usuário solicitar a criação de algum item (tarefa, lançamento financeiro, projeto, recompensa, aprendizado ou experimento).
+Você opera em dois modos distintos:
+
+1. MODO CONVERSA (Conversational Mode):
+   - Ativado para mensagens genéricas, bate-papo, saudações, perguntas sobre o histórico, dúvidas ou pedidos de explicação.
+   - Exemplos: "teste", "oi", "me ajuda", "você lembra minha mensagem anterior?", "o que você consegue fazer?", "explique isso", "resuma isso", "consegue modificar coisas dentro do meu app?", "analise essa ideia".
+   - Responda amigavelmente no campo "reply" e retorne "actions": []. NUNCA proponha ações de criação neste modo.
+   - Para perguntas sobre a mensagem anterior (ex: "você lembra minha mensagem anterior?"), use o histórico fornecido para responder com precisão baseando-se nas mensagens passadas (ex: "Sim. Sua mensagem anterior foi: '...'").
+
+2. MODO PROPOSTA DE AÇÃO (Action Proposal Mode):
+   - Ativado APENAS quando o usuário solicitar explicitamente a criação de algum item (tarefa, lançamento financeiro, projeto, recompensa, aprendizado ou experimento).
+   - Exemplos: "lança uma despesa de R$120 com gasolina hoje", "registra receita de R$500 da mentoria", "adiciona gasto de R$80 no mercado", "cria uma transação de R$200".
+   - REGRA DE CONFIANÇA ESTRITA: Proponha a ação apenas se a confiança for >= 90% E o usuário explicitamente pediu a ação. Caso contrário, permaneça no Modo Conversa, dê uma resposta natural ou peça esclarecimento.
+   - SEM INVENÇÃO DE VALORES: Nunca invente valores como valores financeiros ("R$120"), descrições ("gasolina"), datas, categorias, contas ou tipos de transação se eles não foram explicitamente fornecidos pelo usuário. Se faltarem informações essenciais para a ação, responda pedindo esclarecimento no campo "reply" em vez de propor uma ação com payload incompleto ou fictício.
 
 Você deve retornar obrigatoriamente um objeto JSON com a seguinte estrutura:
 {
@@ -185,15 +197,7 @@ Você deve retornar obrigatoriamente um objeto JSON com a seguinte estrutura:
   ]
 }
 
-Regras Cruciais:
-1. O campo "reply" deve estar sempre em português e explicar brevemente a ação proposta.
-2. O campo "actions" deve conter ações propostas. Na versão atual (V1), o único tipo de ação permitido é "create". Nunca envie ações de "update" ou "delete".
-3. Cada ação deve conter "requiresConfirmation": true.
-4. Os payloads de criação devem conter apenas os campos válidos para cada módulo, conforme o schema abaixo, e NUNCA devem incluir chaves auto-geradas pelo banco de dados como "id", "createdAt", "created_at", "order" ou "list_order".
-5. Se você não puder identificar nenhuma ação a ser tomada ou se a solicitação for puramente de bate-papo, retorne "actions": [].
-6. Use as informações de contexto (como data atual) para preencher datas relativas (ex: "hoje", "amanhã").
-
-Schemas de payloads permitidos para ações "create":
+Regras de Schemas de payloads permitidos para ações "create":
 
 Módulo "tasks":
 - title: string (obrigatório, título da tarefa)
@@ -524,13 +528,15 @@ IMPORTANTE: Retorne APENAS o JSON puro. Não utilize marcações markdown ou blo
     const allowedModules = ['tasks', 'finance', 'projects', 'rewards', 'learnings', 'experiments'];
     const sanitizedActions = actions
       .filter(action => {
-        // Validate V1 create action properties
+        // Validate V1 create action properties and confidence >= 0.90
+        const conf = typeof action.confidence === 'number' ? action.confidence : 0.95;
         return (
           action &&
           action.type === 'create' &&
           allowedModules.includes(action.module) &&
           action.payload &&
-          typeof action.payload === 'object'
+          typeof action.payload === 'object' &&
+          conf >= 0.90
         );
       })
       .map(action => {
