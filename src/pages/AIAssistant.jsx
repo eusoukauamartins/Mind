@@ -50,9 +50,13 @@ export default function AIAssistant() {
   const [providerSettings, setProviderSettings] = useState(() => {
     try {
       const saved = localStorage.getItem('cp_ai_provider_settings');
-      return saved ? JSON.parse(saved) : { provider: 'gemini', model: 'gemini-3.1-pro-preview' };
+      const parsed = saved ? JSON.parse(saved) : null;
+      if (parsed && (parsed.provider === 'gemini' || parsed.provider === 'xai')) {
+        return { provider: 'openai', model: 'gpt-4o' };
+      }
+      return parsed || { provider: 'openai', model: 'gpt-4o' };
     } catch (e) {
-      return { provider: 'gemini', model: 'gemini-3.1-pro-preview' };
+      return { provider: 'openai', model: 'gpt-4o' };
     }
   });
 
@@ -173,8 +177,8 @@ export default function AIAssistant() {
     if (error) return { text: 'Erro na IA', class: 'status-badge-error' };
     
     if (statusData) {
-      const geminiConfigured = statusData?.providers?.gemini?.configured;
-      if (!geminiConfigured) {
+      const openaiConfigured = statusData?.providers?.openai?.configured;
+      if (!openaiConfigured) {
         return { text: 'Configuração pendente', class: 'status-badge-warn' };
       }
     }
@@ -1275,10 +1279,8 @@ export default function AIAssistant() {
                   onChange={handleProviderChange}
                   className="form-select-custom"
                 >
-                  <option value="gemini">Google Gemini</option>
                   <option value="openai">OpenAI</option>
                   <option value="anthropic">Anthropic (Indisponível)</option>
-                  <option value="xai">xAI Grok (Indisponível)</option>
                 </select>
               </div>
 
@@ -1335,7 +1337,7 @@ export default function AIAssistant() {
               </div>
               
               {/* controlled warning for unimplemented providers/models */}
-              {providerSettings.provider !== 'gemini' && providerSettings.provider !== 'openai' && (
+              {providerSettings.provider !== 'openai' && (
                 <div style={{ display: 'flex', gap: '6px', fontSize: '11px', background: 'rgba(231, 76, 60, 0.05)', border: '1px solid rgba(231, 76, 60, 0.2)', color: '#e74c3c', padding: '8px', borderRadius: '4px', marginTop: '4px' }}>
                   <AlertCircle size={14} style={{ flexShrink: 0, marginTop: '2px' }} />
                   <span>Este modelo ainda não está implementado no servidor. O endpoint retornará erro controlado se usado.</span>
