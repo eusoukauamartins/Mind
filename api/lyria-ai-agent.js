@@ -586,7 +586,7 @@ IMPORTANTE: Retorne APENAS o JSON puro. Não utilize marcações markdown ou blo
     });
 
   } catch (err) {
-    console.error('[Lyria AI Endpoint] Error calling AI provider:', err);
-    return res.status(500).json({ error: 'Server encountered an error invoking the AI model.' });
+    console.error('[Lyria AI Endpoint] Error during processing:', err.message, err.stack);
+    return res.status(500).json({ error: `Erro no processar mensagem: ${err.message}` });
   }
 }
