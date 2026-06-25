@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { detectIntent } from '../lib/aiIntentRouter.js';
 
 function getEnv(name) {
   const value = process.env[name];
@@ -52,7 +53,14 @@ export default async function handler(req, res) {
   }
 
   // 5. Request body validation
-  const { message, context, history, provider = 'gemini', model = 'gemini-3.1-pro-preview', attachments = [], audio } = req.body || {};
+  const { message, intent: clientIntent, context, history, provider = 'gemini', model = 'gemini-3.1-pro-preview', attachments = [], audio } = req.body || {};
+
+  const validIntents = ['chat', 'tasks', 'finance', 'projects', 'rewards', 'learnings', 'experiments'];
+  let intent = clientIntent;
+  if (!intent || !validIntents.includes(intent)) {
+    const detected = detectIntent(message);
+    intent = detected.intent;
+  }
   
   const hasMessage = message && typeof message === 'string' && message.trim();
   const hasAudio = audio && typeof audio === 'object' && audio.data && audio.type;
@@ -354,6 +362,7 @@ IMPORTANTE: Retorne APENAS o JSON puro. Não utilize marcações markdown ou blo
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000);
 
+      const startTime = Date.now();
       try {
         const response = await fetch('https://api.openai.com/v1/responses', {
           method: 'POST',
@@ -397,45 +406,72 @@ IMPORTANTE: Retorne APENAS o JSON puro. Não utilize marcações markdown ou blo
           return res.status(statusCode || 500).json({ error: formattedError });
         }
 
-      const resJson = await response.json();
-      
-      // Parse output from Responses API structure
-      if (typeof resJson.output_text === 'string' && resJson.output_text.trim()) {
-        rawText = resJson.output_text;
-      } else if (Array.isArray(resJson.output)) {
-        let refusalText = '';
-        let textParts = [];
-        for (const item of resJson.output) {
-          if (Array.isArray(item.content)) {
-            for (const content of item.content) {
-              if (content.type === 'output_text' && typeof content.text === 'string') {
-                textParts.push(content.text);
-              } else if (content.type === 'text' && typeof content.text === 'string') {
-                textParts.push(content.text);
-              } else if (content.type === 'refusal') {
-                const ref = content.text || content.refusal || '';
-                if (ref) {
-                  refusalText = ref;
+        const resJson = await response.json();
+        const responseTimeMs = Date.now() - startTime;
+        
+        // Parse output from Responses API structure
+        if (typeof resJson.output_text === 'string' && resJson.output_text.trim()) {
+          rawText = resJson.output_text;
+        } else if (Array.isArray(resJson.output)) {
+          let refusalText = '';
+          let textParts = [];
+          for (const item of resJson.output) {
+            if (Array.isArray(item.content)) {
+              for (const content of item.content) {
+                if (content.type === 'output_text' && typeof content.text === 'string') {
+                  textParts.push(content.text);
+                } else if (content.type === 'text' && typeof content.text === 'string') {
+                  textParts.push(content.text);
+                } else if (content.type === 'refusal') {
+                  const ref = content.text || content.refusal || '';
+                  if (ref) {
+                    refusalText = ref;
+                  }
                 }
               }
             }
           }
+          if (textParts.length > 0) {
+            rawText = textParts.join('');
+          } else if (refusalText) {
+            rawText = refusalText;
+          }
         }
-        if (textParts.length > 0) {
-          rawText = textParts.join('');
-        } else if (refusalText) {
-          rawText = refusalText;
-        }
-      }
 
-    } catch (err) {
-      clearTimeout(timeoutId);
-      if (err.name === 'AbortError') {
-        return res.status(400).json({ error: 'A OpenAI demorou para responder. Tente novamente.' });
+        // Instrumentation
+        const inputTokens = resJson.usage?.prompt_tokens || 0;
+        const outputTokens = resJson.usage?.completion_tokens || 0;
+        const totalTokens = resJson.usage?.total_tokens || 0;
+        const cachedTokens = resJson.usage?.prompt_tokens_details?.cached_tokens || 0;
+
+        const systemPromptChars = typeof systemInstruction === 'string' ? systemInstruction.length : 0;
+        const historyChars = JSON.stringify(inputPayload.slice(0, -1)).length;
+        const contextChars = typeof contextSummary === 'string' ? contextSummary.length : 0;
+        const userMessageChars = typeof messageText === 'string' ? messageText.length : 0;
+
+        console.log({
+          timestamp: new Date().toISOString(),
+          model,
+          intent,
+          inputTokens,
+          outputTokens,
+          totalTokens,
+          cachedTokens,
+          responseTimeMs,
+          systemPromptChars,
+          historyChars,
+          contextChars,
+          userMessageChars
+        });
+
+      } catch (err) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+          return res.status(400).json({ error: 'A OpenAI demorou para responder. Tente novamente.' });
+        }
+        console.error('[Lyria AI Endpoint] Error calling OpenAI API:', err);
+        return res.status(500).json({ error: 'Não foi possível obter resposta da OpenAI. Tente novamente.' });
       }
-      console.error('[Lyria AI Endpoint] Error calling OpenAI API:', err);
-      return res.status(500).json({ error: 'Não foi possível obter resposta da OpenAI. Tente novamente.' });
-    }
 
   } else {
     // Call the real model ID directly as requested

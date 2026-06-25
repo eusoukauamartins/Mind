@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { validateAndSanitizeAction } from '../lib/aiActionExecutor';
 import { buildAIContext } from '../lib/aiContextBuilder';
+import { detectIntent } from '../../lib/aiIntentRouter.js';
 import { 
   Sparkles, Send, Bot, Trash2, Check, AlertCircle, Info, RefreshCw, 
   X, RotateCcw, AlertTriangle, Eye, Paperclip, Shield, Activity, 
@@ -12,7 +13,7 @@ import { getToday } from '../utils/helpers';
 
 const PROVIDER_MODELS = {
   gemini: ['gemini-3.1-pro-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'],
-  openai: ['gpt-4o', 'gpt-4o-mini'],
+  openai: ['gpt-4o'],
   anthropic: ['claude-fable-5', 'claude-opus-4-8', 'claude-sonnet-4-6', 'claude-haiku-4-5'],
   xai: ['grok-4.3']
 };
@@ -90,7 +91,7 @@ export default function AIAssistant() {
       const saved = localStorage.getItem('cp_ai_conversations');
       const list = saved ? JSON.parse(saved) : [];
       if (list.length > 0) {
-        return list;
+        return list.map(c => c && c.model === 'gpt-4o-mini' ? { ...c, model: 'gpt-4o' } : c);
       }
     } catch (e) {
       console.error('Failed to parse conversations:', e);
@@ -145,7 +146,7 @@ export default function AIAssistant() {
     try {
       const saved = localStorage.getItem('cp_ai_provider_settings');
       const parsed = saved ? JSON.parse(saved) : null;
-      if (parsed && (parsed.provider === 'gemini' || parsed.provider === 'xai')) {
+      if (parsed && (parsed.provider === 'gemini' || parsed.provider === 'xai' || parsed.model === 'gpt-4o-mini')) {
         return { provider: 'openai', model: 'gpt-4o' };
       }
       return parsed || { provider: 'openai', model: 'gpt-4o' };
@@ -806,7 +807,9 @@ export default function AIAssistant() {
     removeRecordedAudio(); // Clear recorded voice file & free up mic stream
 
     try {
-      const messageHistory = messages.slice(-10).map((m) => ({
+      const { intent } = detectIntent(text);
+      const historyLimit = intent === 'chat' ? 10 : 4;
+      const messageHistory = messages.slice(-historyLimit).map((m) => ({
         role: m.role,
         content: m.content
       }));
@@ -831,6 +834,7 @@ export default function AIAssistant() {
         },
         body: JSON.stringify({
           message: text,
+          intent,
           context: contextPayload,
           history: messageHistory,
           provider: providerSettings.provider,
@@ -841,7 +845,6 @@ export default function AIAssistant() {
             size: att.size,
             data: att.data
           }))
-          // audio is omitted: we only send the transcribed/edited text message
         })
       });
 
