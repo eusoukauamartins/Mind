@@ -1064,10 +1064,48 @@ export default function AIAssistant() {
           grid-template-columns: 1fr 340px;
           gap: var(--sp-4);
           width: 100%;
+          height: calc(100vh - 190px);
+          min-height: 520px;
         }
         @media (max-width: 960px) {
           .ai-hub-grid {
             grid-template-columns: 1fr;
+            height: auto;
+            min-height: 0;
+          }
+        }
+        .ai-chat-workspace {
+          display: flex;
+          flex-direction: column;
+          gap: var(--sp-4);
+          min-width: 0;
+          height: 100%;
+        }
+        @media (max-width: 960px) {
+          .ai-chat-workspace {
+            height: calc(100vh - 200px);
+            min-height: 480px;
+          }
+        }
+        @media (max-width: 768px) {
+          .ai-chat-workspace {
+            height: calc(100vh - 240px);
+            min-height: 400px;
+          }
+        }
+        .ai-config-sidebar {
+          display: flex;
+          flex-direction: column;
+          gap: var(--sp-4);
+          height: 100%;
+          overflow-y: auto;
+          padding-right: 4px;
+        }
+        @media (max-width: 960px) {
+          .ai-config-sidebar {
+            height: auto;
+            overflow-y: visible;
+            padding-right: 0;
           }
         }
         .status-badge {
@@ -1262,9 +1300,9 @@ export default function AIAssistant() {
       <div className="ai-hub-grid">
         
         {/* Left Side: Chat Workspace */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)', minWidth: 0 }}>
+        <div className="ai-chat-workspace">
           
-          <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0, border: '1px solid var(--border-soft)', background: 'var(--bg-secondary)', minHeight: '520px' }}>
+          <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0, border: '1px solid var(--border-soft)', background: 'var(--bg-secondary)', minHeight: 0 }}>
             
             {/* Scrollable Message Box */}
             <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
@@ -1696,7 +1734,7 @@ export default function AIAssistant() {
         </div>
 
         {/* Right Side: Control & Configuration Sidebar */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
+        <div className="ai-config-sidebar">
           
           {/* AI Settings panel */}
           <div className="sidebar-card">

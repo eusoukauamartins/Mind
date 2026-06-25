@@ -176,6 +176,7 @@ export default async function handler(req, res) {
 
   // 8. Build Prompt & System Instructions
   const systemInstruction = `Você é o assistente inteligente integrado do aplicativo Lyria, um organizador pessoal focado em produtividade, finanças e foco estratégico.
+You must always respond with valid JSON only. Do not return markdown, prose outside JSON, or comments.
  Você opera em três modos distintos:
 
 1. MODO CONVERSA (Conversational Mode):
