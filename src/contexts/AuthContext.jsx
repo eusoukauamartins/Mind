@@ -48,48 +48,49 @@ export function AuthProvider({ children }) {
     }
 
     let isMounted = true;
+    let initialized = false;
 
-    // Get initial session and wait for it before deciding user is logged out
-    supabase.auth.getSession().then(({ data: { session: currentSession }, error }) => {
+    const handleSession = (sessionData) => {
       if (!isMounted) return;
+      if (sessionData) {
+        setSession(sessionData);
+        setUser(sessionData.user);
+        if (lastSyncedUserRef.current !== sessionData.user.id) {
+          lastSyncedUserRef.current = sessionData.user.id;
+          triggerSyncChain(sessionData.user);
+        }
+      } else {
+        setSession(null);
+        setUser(null);
+        lastSyncedUserRef.current = null;
+      }
+      if (!initialized) {
+        initialized = true;
+        setLoading(false);
+      }
+    };
+
+    // 1. Get initial session
+    supabase.auth.getSession().then(({ data: { session: currentSession }, error }) => {
       if (error) {
         console.error('[Lyria Auth] getSession error on load:', error.message);
       }
-
-      if (currentSession) {
-        setSession(currentSession);
-        const currentUser = currentSession.user;
-        setUser(currentUser);
-
-        if (lastSyncedUserRef.current !== currentUser.id) {
-          lastSyncedUserRef.current = currentUser.id;
-          triggerSyncChain(currentUser);
-        }
+      // If onAuthStateChange hasn't initialized yet, use getSession result
+      if (!initialized) {
+        handleSession(currentSession);
       }
-      setLoading(false);
     });
 
-    // Listen for auth state changes
+    // 2. Listen to state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, newSession) => {
         if (!isMounted) return;
         console.log(`[Lyria Auth] onAuthStateChange event: ${event}`);
 
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
-          if (newSession) {
-            setSession(newSession);
-            const currentUser = newSession.user;
-            setUser(currentUser);
-
-            if (lastSyncedUserRef.current !== currentUser.id) {
-              lastSyncedUserRef.current = currentUser.id;
-              triggerSyncChain(currentUser);
-            }
-          }
+          handleSession(newSession);
         } else if (event === 'SIGNED_OUT') {
-          setSession(null);
-          setUser(null);
-          lastSyncedUserRef.current = null;
+          handleSession(null);
         }
       }
     );

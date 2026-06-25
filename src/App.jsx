@@ -17,6 +17,7 @@ import Export from './pages/Export'
 import Projects from './pages/Projects'
 import AuthPage from './pages/AuthPage'
 import Recompensas from './pages/Recompensas'
+import AIAssistant from './pages/AIAssistant'
 import { logMigrationReport } from './lib/migrationDetector'
 
 function App() {
@@ -93,6 +94,7 @@ function App() {
         <Route path="/desempenho" element={<Performance />} />
         <Route path="/treino" element={<Workout />} />
         <Route path="/recompensas" element={<Recompensas />} />
+        <Route path="/ia" element={<AIAssistant />} />
         <Route path="/configuracoes" element={<Export />} />
       </Routes>
       <QuickAdd />

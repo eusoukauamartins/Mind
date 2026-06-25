@@ -3,7 +3,7 @@ import {
   LayoutDashboard, CheckSquare, Calendar, DollarSign, Lightbulb,
   FlaskConical, ClipboardList, BarChart3, Dumbbell, Download,
   Menu, X, Zap,
-  ChevronLeft, ChevronRight, Settings, FolderKanban, LogOut, Gift
+  ChevronLeft, ChevronRight, Settings, FolderKanban, LogOut, Gift, Sparkles
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useApp } from '../contexts/AppContext';
@@ -58,6 +58,7 @@ const navGroups = [
   {
     label: 'Sistema',
     items: [
+      { to: '/ia', icon: Sparkles, label: 'IA Assistant' },
       { to: '/configuracoes', icon: Settings, label: 'Configurações' }
     ]
   }

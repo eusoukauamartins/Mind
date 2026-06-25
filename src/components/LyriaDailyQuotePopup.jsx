@@ -496,6 +496,14 @@ const DAILY_QUOTES = [
   {"id":478,"frase":"Prática cresce quando o viés é observado.","categoria":"Conhecimento e Aprendizado","livro_base":"Como Ler Livros","autor_base":"Mortimer J. Adler e Charles Van Doren","credito_sugerido_no_app":"Inspirado em Como Ler Livros — Mortimer J. Adler e Charles Van Doren"}
 ];
 
+function getLocalDateKey() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export default function LyriaDailyQuotePopup() {
   const [isOpen, setIsOpen] = useState(false);
   const [isUnlocked, setIsUnlocked] = useState(false);
@@ -520,8 +528,9 @@ export default function LyriaDailyQuotePopup() {
 
   // Initial check on mount
   useEffect(() => {
-    const sessionShown = sessionStorage.getItem("lyria_quote_session_shown");
-    if (!sessionShown) {
+    const closedDate = localStorage.getItem("cp_daily_quote_popup_closed_date");
+    const todayStr = getLocalDateKey();
+    if (closedDate !== todayStr) {
       setIsOpen(true);
     }
 
@@ -556,6 +565,7 @@ export default function LyriaDailyQuotePopup() {
 
   const handleClose = () => {
     setIsOpen(false);
+    localStorage.setItem("cp_daily_quote_popup_closed_date", getLocalDateKey());
     sessionStorage.setItem("lyria_quote_session_shown", "true");
   };
 

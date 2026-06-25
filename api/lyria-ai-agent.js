@@ -1,0 +1,395 @@
+import { createClient } from '@supabase/supabase-js';
+
+export default async function handler(req, res) {
+  // 1. Method Validation
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', ['POST']);
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  }
+
+  // 2. Auth Header Check
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized: Missing or invalid token format' });
+  }
+  const token = authHeader.split(' ')[1];
+
+  // 3. Supabase client initialization
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey || supabaseUrl === 'your-supabase-project-url') {
+    console.error('[Lyria AI Endpoint] Supabase URL/Key is not configured.');
+    return res.status(500).json({ error: 'Database service is not configured.' });
+  }
+
+  // 4. Token validation via Supabase
+  let user = null;
+  try {
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+    const { data, error } = await supabaseClient.auth.getUser(token);
+    if (error || !data.user) {
+      return res.status(401).json({ error: 'Unauthorized: Invalid session token' });
+    }
+    user = data.user;
+  } catch (err) {
+    console.error('[Lyria AI Endpoint] Supabase JWT verification error:', err);
+    return res.status(401).json({ error: 'Unauthorized: Token verification failed' });
+  }
+
+  // 5. Request body validation
+  const { message, context, history, provider = 'gemini', model = 'gemini-3.1-pro-preview', attachments = [], audio } = req.body || {};
+  
+  const hasMessage = message && typeof message === 'string' && message.trim();
+  const hasAudio = audio && typeof audio === 'object' && audio.data && audio.type;
+
+  if (!hasMessage && !hasAudio) {
+    return res.status(400).json({ error: 'Bad Request: Message or Audio prompt is required.' });
+  }
+  if (message && typeof message === 'string' && message.length > 4000) {
+    return res.status(400).json({ error: 'Bad Request: Message exceeds limit of 4000 characters.' });
+  }
+
+  // Defensive body size limit (adjusted to 15MB for base64 images support)
+  try {
+    const bodySize = JSON.stringify(req.body || {}).length;
+    if (bodySize > 15000000) {
+      return res.status(400).json({ error: 'Bad Request: Payload too large.' });
+    }
+  } catch (err) {
+    return res.status(400).json({ error: 'Bad Request: Invalid JSON body.' });
+  }
+
+  // Allowlist validation
+  const ALLOWED_PROVIDERS = ['gemini', 'openai', 'anthropic', 'xai'];
+  const PROVIDER_MODELS = {
+    gemini: ['gemini-3.1-pro-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'],
+    openai: ['gpt-5.5', 'gpt-5.5-pro', 'gpt-5.4', 'gpt-5.4-pro', 'gpt-5.4-mini'],
+    anthropic: ['claude-fable-5', 'claude-opus-4-8', 'claude-sonnet-4-6', 'claude-haiku-4-5'],
+    xai: ['grok-4.3']
+  };
+
+  if (!ALLOWED_PROVIDERS.includes(provider)) {
+    return res.status(400).json({ error: `Provedor não suportado: "${provider}".` });
+  }
+
+  const allowedModels = PROVIDER_MODELS[provider];
+  if (!allowedModels.includes(model)) {
+    return res.status(400).json({ error: `Modelo não suportado para o provedor ${provider}: "${model}".` });
+  }
+
+  // Real backend implementation check
+  if (provider !== 'gemini') {
+    if (hasAudio) {
+      return res.status(400).json({ error: `Áudio ainda não está implementado para este provedor.` });
+    }
+    return res.status(400).json({ error: `Este provedor ainda não está implementado no servidor.` });
+  }
+
+  // API Key config check
+  const geminiApiKey = process.env.GEMINI_API_KEY;
+  if (!geminiApiKey) {
+    return res.status(400).json({ error: `Este provedor ainda não está configurado no servidor.` });
+  }
+
+  // Audio validation
+  if (audio) {
+    if (typeof audio !== 'object' || !audio.data || !audio.type) {
+      return res.status(400).json({ error: 'Estrutura de áudio inválida.' });
+    }
+    const allowedAudioTypes = ['audio/webm', 'audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/m4a'];
+    const cleanAudioType = audio.type.split(';')[0].trim().toLowerCase();
+    if (!allowedAudioTypes.includes(cleanAudioType)) {
+      return res.status(400).json({ error: `Tipo de áudio não suportado: "${audio.type}".` });
+    }
+    
+    // Reject invalid base64
+    const base64Regex = /^[A-Za-z0-9+/]+={0,2}$/;
+    const base64Clean = audio.data.replace(/\s/g, '');
+    if (!base64Regex.test(base64Clean)) {
+      return res.status(400).json({ error: 'Base64 de áudio inválido.' });
+    }
+
+    const audioSizeInBytes = (base64Clean.length * 3) / 4;
+    if (audioSizeInBytes > 10 * 1024 * 1024) {
+      return res.status(400).json({ error: 'Áudio muito grande. Limite máximo de 10 MB.' });
+    }
+  }
+
+  // Attachment validation
+  if (Array.isArray(attachments)) {
+    if (attachments.length > 3) {
+      return res.status(400).json({ error: 'Máximo de 3 imagens por mensagem.' });
+    }
+    for (const att of attachments) {
+      if (!att || !att.data || !att.type) {
+        return res.status(400).json({ error: 'Estrutura de anexo inválida.' });
+      }
+      if (!['image/png', 'image/jpeg', 'image/webp'].includes(att.type)) {
+        return res.status(400).json({ error: `Tipo de anexo não suportado: "${att.type}". Apenas PNG, JPEG e WEBP são permitidos.` });
+      }
+      const sizeInBytes = (att.data.length * 3) / 4;
+      if (sizeInBytes > 4 * 1024 * 1024) {
+        return res.status(400).json({ error: `Arquivo ${att.name || 'anexo'} excede o limite de 4 MB.` });
+      }
+    }
+  }
+
+  // 7. Limit history context to last 10 messages for token usage safety
+  const trimmedHistory = Array.isArray(history) ? history.slice(-10) : [];
+
+  // 8. Build Prompt & System Instructions
+  const systemInstruction = `Você é o assistente inteligente integrado do aplicativo Lyria, um organizador pessoal focado em produtividade, finanças e foco estratégico.
+Sua tarefa é interagir com o usuário em português e propor ações estruturadas sempre que o usuário solicitar a criação de algum item (tarefa, lançamento financeiro, projeto, recompensa, aprendizado ou experimento).
+
+Você deve retornar obrigatoriamente um objeto JSON com a seguinte estrutura:
+{
+  "reply": "Sua resposta natural em português, explicando o que você propõe ou interagindo amigavelmente.",
+  "actions": [
+    {
+      "type": "create",
+      "module": "tasks | finance | projects | rewards | learnings | experiments",
+      "payload": { ... },
+      "confidence": 0.95,
+      "requiresConfirmation": true,
+      "summary": "Descrição breve em português da ação."
+    }
+  ]
+}
+
+Regras Cruciais:
+1. O campo "reply" deve estar sempre em português e explicar brevemente a ação proposta.
+2. O campo "actions" deve conter ações propostas. Na versão atual (V1), o único tipo de ação permitido é "create". Nunca envie ações de "update" ou "delete".
+3. Cada ação deve conter "requiresConfirmation": true.
+4. Os payloads de criação devem conter apenas os campos válidos para cada módulo, conforme o schema abaixo, e NUNCA devem incluir chaves auto-geradas pelo banco de dados como "id", "createdAt", "created_at", "order" ou "list_order".
+5. Se você não puder identificar nenhuma ação a ser tomada ou se a solicitação for puramente de bate-papo, retorne "actions": [].
+6. Use as informações de contexto (como data atual) para preencher datas relativas (ex: "hoje", "amanhã").
+
+Schemas de payloads permitidos para ações "create":
+
+Módulo "tasks":
+- title: string (obrigatório, título da tarefa)
+- description: string (opcional)
+- priority: string (opcional, valores permitidos: 'baixa', 'média', 'alta')
+- estimatedHours: string (opcional, horas estimadas)
+- status: string (opcional, valor padrão 'pendente', valores permitidos: 'pendente', 'em_andamento', 'concluída')
+- dueDate: string (opcional, data de vencimento no formato YYYY-MM-DD)
+- scheduledDate: string (opcional, data agendada no formato YYYY-MM-DD)
+- scheduledTime: string (opcional, hora no formato HH:mm)
+- category: string (opcional, valores recomendados: 'Marketing', 'Conteúdo', 'Produto', 'Operações', 'Estratégia', 'Pessoal', 'Outro')
+- recurrence: string (opcional, valores permitidos: 'única', 'diária', 'semanal', 'mensal')
+- recurrenceDay: string (opcional)
+- completedDates: array de strings (opcional, padrão [])
+
+Módulo "finance":
+- type: string (obrigatório, valores permitidos: 'entrada' ou 'saída')
+- amount: number (obrigatório, valor monetário positivo, ex: 150.50)
+- category: string (obrigatório. Se for 'entrada': 'Vendas', 'Serviços', 'Investimentos', 'Outros'. Se for 'saída': 'Marketing', 'Ferramentas', 'Operações', 'Pessoal', 'Educação', 'Impostos', 'Outros')
+- expenseClass: string (opcional, obrigatório apenas se type for 'saída'. Valores permitidos: 'Essencial', 'Fixo', 'Variável', 'Estratégico', 'Investimento', 'Supérfluo')
+- subcategory: string (opcional)
+- source: string (opcional, valores recomendados: 'dropshipping', 'conteúdo', 'serviços', 'ferramentas', 'marketing', 'operações', 'pessoal', 'outro')
+- date: string (obrigatório, formato YYYY-MM-DD)
+- notes: string (opcional)
+- originalDescription: string (opcional)
+- sourceBank: string (opcional, ex: 'Nubank')
+- accountName: string (opcional)
+- reviewStatus: string (opcional, padrão 'approved')
+- periodKey: string (opcional, formato YYYY-MM)
+
+Módulo "projects":
+- title: string (obrigatório)
+- description: string (opcional)
+- status: string (opcional, padrão 'ativo', valores permitidos: 'ativo', 'pausado', 'concluído')
+- category: string (opcional, valores recomendados: 'Conteúdo', 'Negócios', 'Estudos', 'Produto')
+- startDate: string (opcional, formato YYYY-MM-DD)
+- targetDate: string (opcional, formato YYYY-MM-DD)
+- subtasks: array de objetos subtarefa (opcional, padrão [])
+
+Módulo "rewards":
+- title: string (obrigatório)
+- description: string (opcional)
+- category: string (opcional, valores recomendados: 'Trabalho', 'Financeiro', 'Saúde', 'Casa', 'Estudos', 'Lazer', 'Pessoal', 'Outro')
+- estimatedValue: number (opcional, valor estimado)
+- deadline: string (opcional, formato YYYY-MM-DD)
+- priority: string (opcional, valores permitidos: 'baixa', 'média', 'alta')
+- status: string (opcional, padrão 'em_andamento', valores permitidos: 'em_andamento', 'desbloqueada')
+- conditions: array de objetos { id, text, completed, completedAt } (opcional, padrão [])
+- notes: string (opcional)
+- financialTargetAmount: number (opcional, ou null)
+- financialCurrentAmount: number (opcional, ou null)
+- showOnDashboard: boolean (opcional, padrão false)
+
+Módulo "learnings":
+- content: string (obrigatório, conteúdo do aprendizado)
+- source: string (opcional, fonte do aprendizado)
+- tags: array de strings (opcional, padrão [])
+- isFavorite: boolean (opcional, padrão false)
+- date: string (opcional, formato YYYY-MM-DD)
+
+Módulo "experiments":
+- title: string (obrigatório)
+- category: string (obrigatório, valores permitidos: 'ads', 'conteúdo', 'negócio', 'operacional', 'produtividade', 'estratégia', 'outro')
+- context: string (opcional)
+- whatWasTested: string (opcional)
+- result: string (opcional)
+- mainError: string (opcional)
+- lessonLearned: string (opcional)
+- repeatThis: string (opcional, valores permitidos: 'sim', 'não')
+- date: string (opcional, formato YYYY-MM-DD)
+- notes: string (opcional)
+- tags: array de strings (opcional, padrão [])
+
+IMPORTANTE: Retorne APENAS o JSON puro. Não utilize marcações markdown ou blocos de código em sua resposta.`;
+
+  // Call the real model ID directly as requested
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`;
+
+  const promptContents = [];
+  
+  // Add history to model context
+  trimmedHistory.forEach(h => {
+    promptContents.push({
+      role: h.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: h.content || '' }]
+    });
+  });
+
+  // Prepare current context metadata for prompt
+  const dateInfo = context?.currentDate ? `Data atual de referência: ${context.currentDate}.` : '';
+  const contextSummary = context?.summary ? `Resumo do estado atual: ${JSON.stringify(context.summary)}.` : '';
+  
+  // Handle empty message text when only audio is sent
+  const messageText = message && typeof message === 'string' && message.trim() ? message : 'Comando de voz recebido.';
+  const userPrompt = `Mensagem do Usuário: "${messageText}"\n${dateInfo}\n${contextSummary}`;
+
+  const userParts = [{ text: userPrompt }];
+
+  // Add image attachments
+  if (Array.isArray(attachments)) {
+    attachments.forEach(att => {
+      userParts.push({
+        inlineData: {
+          mimeType: att.type,
+          data: att.data
+        }
+      });
+    });
+  }
+
+  // Add audio prompt
+  if (audio && audio.data && audio.type) {
+    const cleanMimeType = audio.type.split(';')[0].trim().toLowerCase();
+    userParts.push({
+      inlineData: {
+        mimeType: cleanMimeType,
+        data: audio.data.replace(/\s/g, '')
+      }
+    });
+  }
+
+  promptContents.push({
+    role: 'user',
+    parts: userParts
+  });
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contents: promptContents,
+        systemInstruction: {
+          parts: [{ text: systemInstruction }]
+        },
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.2
+        }
+      })
+    });
+
+    if (!response.ok) {
+      let errMessage = 'Ocorreu um erro ao comunicar com a API do provedor de IA.';
+      try {
+        const errorJson = await response.json();
+        if (errorJson.error && errorJson.error.message) {
+          if (errorJson.error.message.includes('not found') || errorJson.error.message.includes('404')) {
+            errMessage = `Este modelo ainda não está implementado no servidor.`;
+          } else {
+            errMessage = `Erro do Provedor: ${errorJson.error.message}`;
+          }
+        }
+      } catch (e) {}
+      console.error('[Lyria AI Endpoint] Provider API error status:', response.status);
+      return res.status(500).json({ error: errMessage });
+    }
+
+    const resJson = await response.json();
+    const rawText = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!rawText) {
+      console.error('[Lyria AI Endpoint] Empty text returned from Gemini API:', JSON.stringify(resJson));
+      return res.status(200).json({
+        reply: 'Não consegui obter uma resposta válida da IA. Tente novamente.',
+        actions: []
+      });
+    }
+
+    // 9. Parsing and Normalization
+    let parsedResult;
+    try {
+      parsedResult = JSON.parse(rawText.trim());
+    } catch (parseErr) {
+      console.error('[Lyria AI Endpoint] JSON parse failure on text:', rawText, parseErr);
+      return res.status(200).json({
+        reply: 'Não consegui interpretar a resposta da IA com segurança. Tente novamente de forma mais objetiva.',
+        actions: []
+      });
+    }
+
+    const reply = typeof parsedResult.reply === 'string' ? parsedResult.reply : 'Processado com sucesso.';
+    const actions = Array.isArray(parsedResult.actions) ? parsedResult.actions : [];
+
+    const allowedModules = ['tasks', 'finance', 'projects', 'rewards', 'learnings', 'experiments'];
+    const sanitizedActions = actions
+      .filter(action => {
+        // Validate V1 create action properties
+        return (
+          action &&
+          action.type === 'create' &&
+          allowedModules.includes(action.module) &&
+          action.payload &&
+          typeof action.payload === 'object'
+        );
+      })
+      .map(action => {
+        // Strip auto-generated keys to prevent frontend/backend collisions
+        const cleanPayload = { ...action.payload };
+        delete cleanPayload.id;
+        delete cleanPayload.createdAt;
+        delete cleanPayload.created_at;
+        delete cleanPayload.order;
+        delete cleanPayload.list_order;
+
+        return {
+          type: 'create',
+          module: action.module,
+          payload: cleanPayload,
+          confidence: typeof action.confidence === 'number' ? action.confidence : 0.9,
+          requiresConfirmation: true,
+          summary: typeof action.summary === 'string' ? action.summary : `Criar novo item em ${action.module}`
+        };
+      });
+
+    return res.status(200).json({
+      reply,
+      actions: sanitizedActions
+    });
+
+  } catch (err) {
+    console.error('[Lyria AI Endpoint] Error calling Gemini API:', err);
+    return res.status(500).json({ error: 'Server encountered an error invoking the AI model.' });
+  }
+}
