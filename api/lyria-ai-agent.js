@@ -257,7 +257,8 @@ IMPORTANTE: Retorne APENAS o JSON puro. Não utilize marcações markdown ou blo
 
   let rawText = '';
 
-  if (provider === 'openai') {
+  try {
+    if (provider === 'openai') {
     const openAIApiKey = process.env.OPENAI_API_KEY;
     const inputPayload = [];
     
@@ -502,7 +503,7 @@ IMPORTANTE: Retorne APENAS o JSON puro. Não utilize marcações markdown ou blo
     });
 
   } catch (err) {
-    console.error('[Lyria AI Endpoint] Error calling Gemini API:', err);
+    console.error('[Lyria AI Endpoint] Error calling AI provider:', err);
     return res.status(500).json({ error: 'Server encountered an error invoking the AI model.' });
   }
 }
