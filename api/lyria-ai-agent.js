@@ -1,5 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 
+function getEnv(name) {
+  const value = process.env[name];
+  if (!value) return null;
+  const clean = value.trim();
+  if (
+    clean === '' ||
+    clean.startsWith('your-') ||
+    clean === 'placeholder'
+  ) {
+    return null;
+  }
+  return clean;
+}
+
 export default async function handler(req, res) {
   // 1. Method Validation
   if (req.method !== 'POST') {
@@ -15,10 +29,10 @@ export default async function handler(req, res) {
   const token = authHeader.split(' ')[1];
 
   // 3. Supabase client initialization
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  const supabaseUrl = getEnv('SUPABASE_URL') || getEnv('VITE_SUPABASE_URL');
+  const supabaseAnonKey = getEnv('SUPABASE_ANON_KEY') || getEnv('VITE_SUPABASE_ANON_KEY');
 
-  if (!supabaseUrl || !supabaseAnonKey || supabaseUrl === 'your-supabase-project-url') {
+  if (!supabaseUrl || !supabaseAnonKey) {
     console.error('[Lyria AI Endpoint] Supabase URL/Key is not configured.');
     return res.status(500).json({ error: 'Database service is not configured.' });
   }
@@ -95,13 +109,13 @@ export default async function handler(req, res) {
     if (!implementedOpenAIModels.includes(model)) {
       return res.status(400).json({ error: 'Este modelo OpenAI ainda não está implementado no servidor.' });
     }
-    const openAIApiKey = process.env.OPENAI_API_KEY;
+    const openAIApiKey = getEnv('OPENAI_API_KEY');
     if (!openAIApiKey) {
       return res.status(400).json({ error: `Este provedor ainda não está configurado no servidor.` });
     }
   }
 
-  const geminiApiKey = process.env.GEMINI_API_KEY;
+  const geminiApiKey = getEnv('GEMINI_API_KEY');
   if (provider === 'gemini' && !geminiApiKey) {
     return res.status(400).json({ error: `Este provedor ainda não está configurado no servidor.` });
   }
@@ -259,7 +273,7 @@ IMPORTANTE: Retorne APENAS o JSON puro. Não utilize marcações markdown ou blo
 
   try {
     if (provider === 'openai') {
-    const openAIApiKey = process.env.OPENAI_API_KEY;
+    const openAIApiKey = getEnv('OPENAI_API_KEY');
     const inputPayload = [];
     
     // Add history to model context

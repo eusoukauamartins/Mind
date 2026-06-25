@@ -1,5 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 
+function getEnv(name) {
+  const value = process.env[name];
+  if (!value) return null;
+  const clean = value.trim();
+  if (
+    clean === '' ||
+    clean.startsWith('your-') ||
+    clean === 'placeholder'
+  ) {
+    return null;
+  }
+  return clean;
+}
+
 export default async function handler(req, res) {
   // 1. Method Validation
   if (req.method !== 'GET') {
@@ -16,10 +30,10 @@ export default async function handler(req, res) {
 
   try {
     // 3. Supabase client initialization
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+    const supabaseUrl = getEnv('SUPABASE_URL') || getEnv('VITE_SUPABASE_URL');
+    const supabaseAnonKey = getEnv('SUPABASE_ANON_KEY') || getEnv('VITE_SUPABASE_ANON_KEY');
 
-    if (!supabaseUrl || !supabaseAnonKey || supabaseUrl === 'your-supabase-project-url') {
+    if (!supabaseUrl || !supabaseAnonKey) {
       return res.status(500).json({ error: 'Database service is not configured.' });
     }
 
@@ -31,10 +45,10 @@ export default async function handler(req, res) {
     }
 
     // Check if API keys exist on the server
-    const hasGemini = !!process.env.GEMINI_API_KEY;
-    const hasOpenAI = !!process.env.OPENAI_API_KEY;
-    const hasAnthropic = !!process.env.ANTHROPIC_API_KEY;
-    const hasXAI = !!process.env.XAI_API_KEY;
+    const hasGemini = !!getEnv('GEMINI_API_KEY');
+    const hasOpenAI = !!getEnv('OPENAI_API_KEY');
+    const hasAnthropic = !!getEnv('ANTHROPIC_API_KEY');
+    const hasXAI = !!getEnv('XAI_API_KEY');
 
     return res.status(200).json({
       providers: {
