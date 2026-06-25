@@ -188,7 +188,7 @@ export function validateAndSanitizeAction(module, payload) {
 
       // Category validation
       const incomeCategories = ['Vendas', 'Serviços', 'Investimentos', 'Outros'];
-      const expenseCategories = ['Marketing', 'Ferramentas', 'Operações', 'Pessoal', 'Educação', 'Impostos', 'Outros'];
+      const expenseCategories = ['Marketing', 'Ferramentas', 'Operações', 'Pessoal', 'Educação', 'Impostos', 'Transporte', 'Carro', 'Combustível', 'Alimentação', 'Mercado', 'Restaurante', 'Moradia', 'Contas', 'Saúde', 'Assinaturas', 'Lazer', 'Outros'];
       const validPool = cleanPayload.type === 'entrada' ? incomeCategories : expenseCategories;
 
       if (cleanPayload.category) {

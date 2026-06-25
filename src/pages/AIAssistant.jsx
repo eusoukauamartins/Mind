@@ -818,7 +818,7 @@ export default function AIAssistant() {
       };
 
       try {
-        contextPayload = buildAIContext(appState);
+        contextPayload = buildAIContext(appState, text, messageHistory);
       } catch (ctxErr) {
         console.error('[Lyria AI Assistant] Context builder failed:', ctxErr);
       }

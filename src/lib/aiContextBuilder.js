@@ -14,13 +14,86 @@ function truncate(str, maxLen = 60) {
   return clean.substring(0, maxLen) + '...';
 }
 
+function detectRequestedMonths(text = '', history = [], currentDate = '') {
+  const [currYearStr, currMonthStr] = currentDate.split('-');
+  const currYear = parseInt(currYearStr, 10);
+  const currMonth = parseInt(currMonthStr, 10);
+  
+  const currentMonthKey = `${currYearStr}-${currMonthStr}`;
+  
+  // Previous month calculation
+  let prevMonth = currMonth - 1;
+  let prevYear = currYear;
+  if (prevMonth === 0) {
+    prevMonth = 12;
+    prevYear = currYear - 1;
+  }
+  const prevMonthKey = `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
+  
+  const months = new Set([currentMonthKey, prevMonthKey]);
+  
+  const historyText = Array.isArray(history) ? history.slice(-5).map(h => h.content || '').join(' ') : '';
+  const combinedText = (String(text) + ' ' + historyText).toLowerCase();
+  
+  // 1. Regex for MM/YY or MM/YYYY
+  const dateRegex = /\b(\d{1,2})\/(\d{2,4})\b/g;
+  let match;
+  while ((match = dateRegex.exec(combinedText)) !== null) {
+    const m = String(match[1]).padStart(2, '0');
+    let y = match[2];
+    if (y.length === 2) {
+      y = '20' + y;
+    }
+    months.add(`${y}-${m}`);
+  }
+  
+  // 2. Portuguese month names
+  const monthMap = {
+    janeiro: 1, jan: 1,
+    fevereiro: 2, fev: 2,
+    março: 3, marco: 3, mar: 3,
+    abril: 4, abr: 4,
+    maio: 5, mai: 5,
+    junho: 6, jun: 6,
+    julho: 7, jul: 7,
+    agosto: 8, ago: 8,
+    setembro: 9, set: 9,
+    outubro: 10, out: 10,
+    novembro: 11, nov: 11,
+    dezembro: 12, dez: 12
+  };
+  
+  const monthNamesRegex = /(janeiro|fevereiro|março|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro|jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)/gi;
+  let nameMatch;
+  while ((nameMatch = monthNamesRegex.exec(combinedText)) !== null) {
+    const monthNum = monthMap[nameMatch[1].toLowerCase()];
+    if (monthNum) {
+      const index = nameMatch.index;
+      const sub = combinedText.substring(index, index + 30);
+      const yearMatch = /\b(\d{2,4})\b/.exec(sub);
+      let year = currYear;
+      if (yearMatch) {
+        let yMatched = yearMatch[1];
+        if (yMatched !== String(monthNum) && yMatched.length >= 2) {
+          year = parseInt(yMatched.length === 2 ? '20' + yMatched : yMatched, 10);
+        }
+      }
+      months.add(`${year}-${String(monthNum).padStart(2, '0')}`);
+    }
+  }
+  
+  return Array.from(months);
+}
+
 /**
  * Builds a compact summary of the current app context.
  * 
  * @param {object} appState - The current state exposed by useApp()
+ * @param {string} userMessage - The current user message
+ * @param {array} history - Recent conversation history
  * @returns {object} A compact JSON-serializable context object
  */
-export function buildAIContext(appState) {
+export function buildAIContext(appState, userMessage = '', history = []) {
   if (!appState) {
     return { error: 'No appState supplied.' };
   }
@@ -99,8 +172,61 @@ export function buildAIContext(appState) {
 
   // 3. Finance Summary
   const rawFinance = Array.isArray(appState.finance) ? appState.finance : [];
+  const financeDataAccessible = Array.isArray(appState.finance);
+  const requestedMonths = detectRequestedMonths(userMessage, history, today);
   
-  // Month totals
+  const requestedMonthsData = {};
+  if (financeDataAccessible) {
+    requestedMonths.forEach(monthKey => {
+      const monthEntries = rawFinance.filter(f => f.date && f.date.startsWith(monthKey));
+      
+      const incomeTotal = monthEntries
+        .filter(f => f.type === 'entrada')
+        .reduce((sum, f) => sum + (f.amount || 0), 0);
+        
+      const expenseTotal = monthEntries
+        .filter(f => f.type === 'saída')
+        .reduce((sum, f) => sum + (f.amount || 0), 0);
+        
+      const balance = incomeTotal - expenseTotal;
+      
+      // Category calculations
+      const categorySummary = {};
+      monthEntries.forEach(f => {
+        const cat = f.category || 'Outros';
+        const amt = f.amount || 0;
+        if (!categorySummary[cat]) categorySummary[cat] = 0;
+        categorySummary[cat] += f.type === 'entrada' ? amt : -amt;
+      });
+
+      // Compact transaction summaries (max 30 transactions per month to prevent token bloating)
+      const transactions = monthEntries
+        .slice()
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 30)
+        .map(f => ({
+          date: f.date,
+          type: f.type,
+          amount: f.amount,
+          category: f.category,
+          subcategory: f.subcategory || '',
+          description: f.originalDescription || f.notes || ''
+        }));
+
+      requestedMonthsData[monthKey] = {
+        periodKey: monthKey,
+        transactionCount: monthEntries.length,
+        totals: {
+          receitas: incomeTotal,
+          despesas: expenseTotal,
+          saldo: balance
+        },
+        categorySummary,
+        transactions
+      };
+    });
+  }
+
   const currentMonthEntries = rawFinance.filter(f => f.date && f.date.startsWith(currentMonth));
   const incomeTotal = currentMonthEntries
     .filter(f => f.type === 'entrada')
@@ -110,7 +236,6 @@ export function buildAIContext(appState) {
     .reduce((sum, f) => sum + (f.amount || 0), 0);
   const monthlyBalance = incomeTotal - expenseTotal;
 
-  // 7 days expense sum
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
@@ -118,7 +243,6 @@ export function buildAIContext(appState) {
     .filter(f => f.type === 'saída' && f.date >= sevenDaysAgoStr && f.date <= today)
     .reduce((sum, f) => sum + (f.amount || 0), 0);
 
-  // Recent entries
   const recentFinance = rawFinance
     .slice()
     .sort((a, b) => b.date.localeCompare(a.date))
@@ -134,7 +258,6 @@ export function buildAIContext(appState) {
       notes: truncate(f.notes, 40)
     }));
 
-  // Biggest expenses in current month
   const bigExpenses = currentMonthEntries
     .filter(f => f.type === 'saída')
     .sort((a, b) => (b.amount || 0) - (a.amount || 0))
@@ -147,6 +270,8 @@ export function buildAIContext(appState) {
     }));
 
   const financeSummary = {
+    financeDataAccessible,
+    requestedMonthsData,
     currentMonth: {
       periodKey: currentMonth,
       incomeTotal,

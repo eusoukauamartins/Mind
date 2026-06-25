@@ -13,7 +13,7 @@ import FinanceImportReview from '../components/FinanceImportReview';
 
 const defaultEntry = { originalDescription: '', type: 'entrada', amount: '', category: '', expenseClass: '', subcategory: '', source: '', date: new Date().toISOString().split('T')[0], notes: '' };
 export const incomeCategories = ['Vendas', 'Serviços', 'Investimentos', 'Outros'];
-export const expenseCategories = ['Marketing', 'Ferramentas', 'Operações', 'Pessoal', 'Educação', 'Impostos', 'Outros'];
+export const expenseCategories = ['Marketing', 'Ferramentas', 'Operações', 'Pessoal', 'Educação', 'Impostos', 'Transporte', 'Carro', 'Combustível', 'Alimentação', 'Mercado', 'Restaurante', 'Moradia', 'Contas', 'Saúde', 'Assinaturas', 'Lazer', 'Outros'];
 export const expenseClasses = ['Essencial', 'Fixo', 'Variável', 'Estratégico', 'Investimento', 'Supérfluo'];
 export const sources = ['dropshipping', 'conteúdo', 'serviços', 'ferramentas', 'marketing', 'operações', 'pessoal', 'outro'];
 const COLORS = ['#6c5ce7', '#00cec9', '#00b894', '#fdcb6e', '#e17055', '#74b9ff', '#a29bfe', '#fab1a0'];
