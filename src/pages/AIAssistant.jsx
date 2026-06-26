@@ -4,6 +4,14 @@ import { useApp } from '../contexts/AppContext';
 import { validateAndSanitizeAction } from '../lib/aiActionExecutor';
 import { buildAIContext } from '../lib/aiContextBuilder';
 import { detectIntent } from '../../lib/aiIntentRouter.js';
+import {
+  getAIConversations,
+  upsertAIConversation,
+  upsertAIMessages,
+  deleteAIConversation,
+  migrateLocalAIConversationsToSupabase,
+  clearAIMessages
+} from '../lib/aiConversationsSync.js';
 import { 
   Sparkles, Send, Bot, Trash2, Check, AlertCircle, Info, RefreshCw, 
   X, RotateCcw, AlertTriangle, Eye, Paperclip, Shield, Activity, 
@@ -225,6 +233,36 @@ export default function AIAssistant() {
       });
   }, [isAuthenticated, session]);
 
+  // Load and Migrate conversations from/to Supabase
+  useEffect(() => {
+    if (!isAuthenticated || !session?.user) return;
+
+    const loadAndMigrate = async () => {
+      try {
+        const remoteConvs = await getAIConversations(session.user);
+        const isSupabaseMigrated = localStorage.getItem('cp_ai_supabase_migrated_v1') === 'true';
+
+        if (remoteConvs.length === 0 && conversations.length > 0 && !isSupabaseMigrated) {
+          const success = await migrateLocalAIConversationsToSupabase(session.user, conversations);
+          if (success) {
+            localStorage.setItem('cp_ai_supabase_migrated_v1', 'true');
+            const updatedRemote = await getAIConversations(session.user);
+            if (updatedRemote.length > 0) {
+              setConversations(updatedRemote);
+            }
+          }
+        } else if (remoteConvs.length > 0) {
+          setConversations(remoteConvs);
+          localStorage.setItem('cp_ai_supabase_migrated_v1', 'true');
+        }
+      } catch (err) {
+        console.error('[Lyria AI Assistant] Load/Migration from Supabase failed:', err);
+      }
+    };
+
+    loadAndMigrate();
+  }, [isAuthenticated, session]);
+
   // Clean up media recorder stream tracks on unmount
   useEffect(() => {
     return () => {
@@ -305,13 +343,22 @@ export default function AIAssistant() {
             title = inferTitleFromMessage(firstUserMsg.content);
           }
         }
-        return {
+        const updated = {
           ...c,
           messages: newMessages,
           messageCount: newMessages.length,
           title,
           updatedAt: new Date().toISOString()
         };
+        if (isAuthenticated && session?.user) {
+          upsertAIConversation(session.user, updated);
+          if (newMessages.length === 0) {
+            clearAIMessages(session.user, currentConversationId);
+          } else {
+            upsertAIMessages(session.user, currentConversationId, newMessages);
+          }
+        }
+        return updated;
       }
       return c;
     }));
@@ -339,7 +386,6 @@ export default function AIAssistant() {
     }
   };
 
-  // Create a new empty conversation and set it as active
   const handleNewConversation = () => {
     const newId = crypto.randomUUID();
     const newConv = {
@@ -357,6 +403,10 @@ export default function AIAssistant() {
     setConversations(prev => [newConv, ...prev]);
     setCurrentConversationId(newId);
     setIsHistoryOpen(false);
+
+    if (isAuthenticated && session?.user) {
+      upsertAIConversation(session.user, newConv);
+    }
   };
 
   // Rename conversation inline
@@ -364,7 +414,11 @@ export default function AIAssistant() {
     if (!newTitle || !newTitle.trim()) return;
     setConversations(prev => prev.map(c => {
       if (c.id === id) {
-        return { ...c, title: newTitle.trim(), updatedAt: new Date().toISOString() };
+        const updated = { ...c, title: newTitle.trim(), updatedAt: new Date().toISOString() };
+        if (isAuthenticated && session?.user) {
+          upsertAIConversation(session.user, updated);
+        }
+        return updated;
       }
       return c;
     }));
@@ -374,7 +428,11 @@ export default function AIAssistant() {
   const handleTogglePin = (id) => {
     setConversations(prev => prev.map(c => {
       if (c.id === id) {
-        return { ...c, pinned: !c.pinned, updatedAt: new Date().toISOString() };
+        const updated = { ...c, pinned: !c.pinned, updatedAt: new Date().toISOString() };
+        if (isAuthenticated && session?.user) {
+          upsertAIConversation(session.user, updated);
+        }
+        return updated;
       }
       return c;
     }));
@@ -385,6 +443,10 @@ export default function AIAssistant() {
     setConversations(prev => prev.map(c => {
       if (c.id === id) {
         const toggledArchive = !c.archived;
+        const updated = { ...c, archived: toggledArchive, updatedAt: new Date().toISOString() };
+        if (isAuthenticated && session?.user) {
+          upsertAIConversation(session.user, updated);
+        }
         if (toggledArchive && currentConversationId === id) {
           setTimeout(() => {
             setConversations(latest => {
@@ -396,7 +458,7 @@ export default function AIAssistant() {
             });
           }, 0);
         }
-        return { ...c, archived: toggledArchive, updatedAt: new Date().toISOString() };
+        return updated;
       }
       return c;
     }));
@@ -407,6 +469,9 @@ export default function AIAssistant() {
     const conv = conversations.find(c => c.id === id);
     if (!conv) return;
     if (window.confirm(`Deseja realmente excluir a conversa "${conv.title}"?`)) {
+      if (isAuthenticated && session?.user) {
+        deleteAIConversation(session.user, id);
+      }
       setConversations(prev => {
         const remaining = prev.filter(c => c.id !== id);
         if (currentConversationId === id) {
@@ -426,6 +491,9 @@ export default function AIAssistant() {
               pinned: false,
               archived: false
             };
+            if (isAuthenticated && session?.user) {
+              upsertAIConversation(session.user, firstConv);
+            }
             setCurrentConversationId(firstConv.id);
             return [firstConv];
           }
@@ -788,13 +856,18 @@ export default function AIAssistant() {
             title = inferTitleFromMessage(firstUserMsg.content);
           }
         }
-        return {
+        const updated = {
           ...c,
           messages: updatedMessages,
           messageCount: updatedMessages.length,
           title,
           updatedAt: new Date().toISOString()
         };
+        if (isAuthenticated && session?.user) {
+          upsertAIConversation(session.user, updated);
+          upsertAIMessages(session.user, currentConversationId, [userMessage]);
+        }
+        return updated;
       }
       return c;
     }));
@@ -878,12 +951,17 @@ export default function AIAssistant() {
       setConversations((latestConvs) => latestConvs.map(c => {
         if (c.id === currentConversationId) {
           const updatedMessages = [...c.messages, assistantMessage];
-          return {
+          const updated = {
             ...c,
             messages: updatedMessages,
             messageCount: updatedMessages.length,
             updatedAt: new Date().toISOString()
           };
+          if (isAuthenticated && session?.user) {
+            upsertAIConversation(session.user, updated);
+            upsertAIMessages(session.user, currentConversationId, [assistantMessage]);
+          }
+          return updated;
         }
         return c;
       }));
@@ -1054,7 +1132,7 @@ export default function AIAssistant() {
   }
 
   return (
-    <div className="page-container" style={{ maxWidth: '1200px', margin: '0 auto', padding: 'var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
+    <div className="page-container ai-page-container" style={{ maxWidth: '1200px', margin: '0 auto', padding: 'var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
       
       {/* Styles for grid controls & blink animation */}
       <style>{`
@@ -1099,8 +1177,22 @@ export default function AIAssistant() {
           }
         }
         @media (max-width: 768px) {
+          .ai-page-container {
+            height: calc(100dvh - 56px - 80px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) !important;
+            padding: var(--sp-3) var(--sp-3) !important;
+            gap: var(--sp-2) !important;
+          }
+          .ai-page-container .page-header {
+            margin-bottom: 0 !important;
+            gap: var(--sp-1) !important;
+          }
+          .ai-page-container .page-header p {
+            display: none !important;
+          }
           .ai-hub-grid {
-            height: calc(100dvh - 120px);
+            flex: 1 !important;
+            height: auto !important;
+            min-height: 0 !important;
           }
           .ai-message-bubble-wrap {
             max-width: 92%;

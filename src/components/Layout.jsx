@@ -267,17 +267,19 @@ export default function Layout({ children }) {
             {children}
           </ErrorBoundary>
         </div>
-        <footer style={{ 
-          textAlign: 'center', 
-          padding: 'var(--sp-10) 0 var(--sp-6)', 
-          fontSize: '12px', 
-          color: 'var(--text-secondary)', 
-          opacity: 0.8,
-          letterSpacing: '0.03em',
-          backdropFilter: 'blur(10px)',
-        }}>
-          @ Lyria by Kauã
-        </footer>
+        {location.pathname !== '/ia' && (
+          <footer style={{ 
+            textAlign: 'center', 
+            padding: 'var(--sp-10) 0 var(--sp-6)', 
+            fontSize: '12px', 
+            color: 'var(--text-secondary)', 
+            opacity: 0.8,
+            letterSpacing: '0.03em',
+            backdropFilter: 'blur(10px)',
+          }}>
+            @ Lyria by Kauã
+          </footer>
+        )}
       </main>
 
       {/* Mobile Bottom Nav */}

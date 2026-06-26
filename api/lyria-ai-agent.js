@@ -53,7 +53,9 @@ export default async function handler(req, res) {
   }
 
   // 5. Request body validation
-  const { message, intent: clientIntent, context, history, provider = 'gemini', model = 'gemini-3.1-pro-preview', attachments = [], audio } = req.body || {};
+  let { message, intent: clientIntent, context, history, provider, model, attachments = [], audio } = req.body || {};
+  if (!provider) provider = 'openai';
+  if (!model) model = 'gpt-4o';
 
   const validIntents = ['chat', 'tasks', 'finance', 'projects', 'rewards', 'learnings', 'experiments'];
   let intent = clientIntent;

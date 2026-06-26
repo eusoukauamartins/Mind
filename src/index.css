@@ -1761,7 +1761,8 @@ tr:hover td {
   }
 
   .quick-add-menu {
-    bottom: 80px;
+    bottom: calc(80px + env(safe-area-inset-bottom, 0px)) !important;
+    right: calc(var(--sp-4) + env(safe-area-inset-right, 0px)) !important;
   }
 }
 
@@ -1788,7 +1789,7 @@ tr:hover td {
   right: 0;
   background: var(--bg-secondary);
   border-top: 1px solid var(--border);
-  padding: var(--sp-2) var(--sp-2) calc(var(--sp-2) + env(safe-area-inset-bottom, 0px));
+  padding: var(--sp-2) calc(var(--sp-2) + env(safe-area-inset-right, 0px)) calc(var(--sp-2) + env(safe-area-inset-bottom, 0px)) calc(var(--sp-2) + env(safe-area-inset-left, 0px));
   z-index: 100;
 }
 
@@ -2217,7 +2218,7 @@ tr:hover td {
 
   .mobile-header {
     height: calc(56px + env(safe-area-inset-top, 0px)) !important;
-    padding: env(safe-area-inset-top, 0px) var(--sp-4) 0 !important;
+    padding: env(safe-area-inset-top, 0px) calc(var(--sp-4) + env(safe-area-inset-right, 0px)) 0 calc(var(--sp-4) + env(safe-area-inset-left, 0px)) !important;
   }
 
   .sidebar-logo {
