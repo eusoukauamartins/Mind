@@ -226,12 +226,26 @@ Módulo "tasks":
 - estimatedHours: string (opcional, horas estimadas)
 - status: string (opcional, valor padrão 'pendente', valores permitidos: 'pendente', 'em_andamento', 'concluída')
 - dueDate: string (opcional, data de vencimento no formato YYYY-MM-DD)
+- dueTime: string (opcional, hora de vencimento no formato HH:mm, obrigatório se reminderEnabled for true)
+- reminderEnabled: boolean (opcional, padrão false)
+- reminderAt: string (opcional, timestamp ISO timestamptz exato do lembrete, ex: "2026-06-26T14:00:00-03:00", obrigatório se reminderEnabled for true)
+- timezone: string (opcional, padrão 'America/Sao_Paulo')
 - scheduledDate: string (opcional, data agendada no formato YYYY-MM-DD)
 - scheduledTime: string (opcional, hora no formato HH:mm)
 - category: string (opcional, valores recomendados: 'Marketing', 'Conteúdo', 'Produto', 'Operações', 'Estratégia', 'Pessoal', 'Outro')
 - recurrence: string (opcional, valores permitidos: 'única', 'diária', 'semanal', 'mensal')
 - recurrenceDay: string (opcional)
 - completedDates: array de strings (opcional, padrão [])
+
+REGRA DE LEMBRETES/NOTIFICAÇÕES:
+* Se o usuário pedir para lembrá-lo ("me lembra", "me avisa", "notifica", "reminder", "alarme"), trate como um lembrete (reminderEnabled: true).
+* Para agendar um lembrete, a data (dueDate) e a hora (dueTime) são obrigatórias.
+* Se a data ou a hora estiverem faltando, não invente valores fictícios nem adivinhe. Em vez disso, não proponha nenhuma ação (retorne 'actions': []), e responda no campo 'reply' solicitando que o usuário especifique a data e hora do lembrete.
+* Se a data e hora forem fornecidas (ex: "amanhã às 14h"), defina:
+  - reminderEnabled: true
+  - dueTime: "14:00"
+  - reminderAt: o timestamp ISO exato correspondente a essa data e hora (calculado no fuso horário 'America/Sao_Paulo').
+  - timezone: "America/Sao_Paulo"
 
 Módulo "finance":
 - type: string (obrigatório, valores permitidos: 'entrada' ou 'saída')

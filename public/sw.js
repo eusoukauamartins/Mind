@@ -96,3 +96,54 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+// Generic Push Notification Listener
+self.addEventListener('push', (event) => {
+  let data = {};
+  if (event.data) {
+    try {
+      data = event.data.json();
+    } catch (e) {
+      data = { title: 'Lembrete Lyria', body: event.data.text() };
+    }
+  }
+
+  const title = data.title || 'Lembrete Lyria';
+  const options = {
+    body: data.body || '',
+    icon: data.icon || '/favicon.svg',
+    badge: data.badge || '/favicon.svg',
+    data: {
+      url: data.url || '/ia'
+    }
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(title, options)
+  );
+});
+
+// Generic Notification Click Listener
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const urlToOpen = event.notification.data?.url || '/ia';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // Focus existing window matching domain, navigating to target URL if different
+      for (let i = 0; i < windowClients.length; i++) {
+        const client = windowClients[i];
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          if (client.url !== urlToOpen && 'navigate' in client) {
+            client.navigate(urlToOpen);
+          }
+          return client.focus();
+        }
+      }
+      // Or open a new window
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(urlToOpen);
+      }
+    })
+  );
+});

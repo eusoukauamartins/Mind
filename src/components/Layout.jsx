@@ -97,6 +97,37 @@ export default function Layout({ children }) {
     document.documentElement.setAttribute('data-accent', savedAccent);
   }, []);
 
+  // Global visual viewport resize/scroll listeners for safe keyboard/PWA handling
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+
+    const handleResize = () => {
+      const height = window.visualViewport.height;
+      document.documentElement.style.setProperty('--dynamic-viewport-height', `${height}px`);
+
+      // Detect keyboard open if visual height is significantly shorter than layout height
+      const isKeyboardOpen = height < window.innerHeight - 150;
+      if (isKeyboardOpen) {
+        document.body.classList.add('keyboard-open');
+      } else {
+        document.body.classList.remove('keyboard-open');
+      }
+    };
+
+    // Set initial height
+    handleResize();
+
+    window.visualViewport.addEventListener('resize', handleResize);
+    window.visualViewport.addEventListener('scroll', handleResize);
+
+    return () => {
+      window.visualViewport.removeEventListener('resize', handleResize);
+      window.visualViewport.removeEventListener('scroll', handleResize);
+      document.body.classList.remove('keyboard-open');
+      document.documentElement.style.removeProperty('--dynamic-viewport-height');
+    };
+  }, []);
+
 
 
   return (

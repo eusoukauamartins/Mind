@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../contexts/AppContext';
 import Modal from '../components/Modal';
-import { Download, Upload, FileText, FileJson, Calendar, CheckSquare, DollarSign, Lightbulb, FlaskConical, ClipboardList, BarChart3, Dumbbell, Trash2, Palette, Check, RefreshCw, Database, Layers, Gift } from 'lucide-react';
+import { Download, Upload, FileText, FileJson, Calendar, CheckSquare, DollarSign, Lightbulb, FlaskConical, ClipboardList, BarChart3, Dumbbell, Trash2, Palette, Check, RefreshCw, Database, Layers, Gift, Bell } from 'lucide-react';
 import { db } from '../data/db';
 import { saveSetting } from '../lib/settingsSync';
 import { resetAllData, importFullBackup, normalizeBackupData } from '../lib/resetAndImport';
@@ -12,6 +12,13 @@ import { mapLocalToRemoteProject } from '../lib/batch3Sync';
 import { mapLocalToRemoteFinance, mapLocalToRemoteFixedCost } from '../lib/financeSync';
 import { mapLocalToRemoteReward } from '../lib/rewardsSync';
 import { mapLocalToRemoteWeeklyReview } from '../lib/weeklyReviewsSync';
+import {
+  isNotificationSupported,
+  getNotificationPermission,
+  getPushSubscription,
+  subscribeToPushNotifications,
+  unsubscribeFromPushNotifications
+} from '../lib/notificationsSync';
 
 const modules = [
   { key: 'tasks', label: 'Tarefas', icon: CheckSquare, stateKey: 'tasks' },
@@ -142,6 +149,48 @@ export default function Config() {
   // Theme state
   const [currentMode, setCurrentMode] = useState('dark');
   const [currentAccent, setCurrentAccent] = useState('purple-premium');
+
+  // Notifications state
+  const [pushSupported, setPushSupported] = useState(false);
+  const [permission, setPermission] = useState('default');
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [submittingPush, setSubmittingPush] = useState(false);
+  const [pushError, setPushError] = useState('');
+  const [vapidMissing, setVapidMissing] = useState(!import.meta.env.VITE_VAPID_PUBLIC_KEY);
+
+  useEffect(() => {
+    const supported = isNotificationSupported();
+    setPushSupported(supported);
+    if (supported) {
+      setPermission(getNotificationPermission());
+      getPushSubscription().then(sub => {
+        setIsSubscribed(!!sub);
+      }).catch(err => {
+        console.warn('Error checking push subscription on init:', err);
+      });
+    }
+  }, []);
+
+  const handleToggleNotifications = async () => {
+    setSubmittingPush(true);
+    setPushError('');
+    try {
+      if (isSubscribed) {
+        await unsubscribeFromPushNotifications();
+        setIsSubscribed(false);
+        setPermission(getNotificationPermission());
+      } else {
+        await subscribeToPushNotifications();
+        setIsSubscribed(true);
+        setPermission(getNotificationPermission());
+      }
+    } catch (err) {
+      console.error(err);
+      setPushError(err.message || 'Erro ao alterar configurações de notificação.');
+    } finally {
+      setSubmittingPush(false);
+    }
+  };
 
   useEffect(() => {
     // Migration logic for old theme strings (e.g. "dark-purple")
@@ -547,6 +596,68 @@ export default function Config() {
                 })}
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* SECTION 1.5 — NOTIFICAÇÕES PUSH */}
+        <div style={{ paddingBottom: 'var(--sp-8)', borderBottom: '1px solid var(--border-soft)' }}>
+          <h3 style={{ fontSize: 'var(--fs-lg)', color: 'var(--text-primary)', marginBottom: 'var(--sp-4)', display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', fontWeight: 600 }}>
+            <Bell size={18} /> Notificações Push
+          </h3>
+          <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-tertiary)', marginBottom: 'var(--sp-4)' }}>
+            Receba alertas de lembretes e tarefas agendadas em tempo real neste dispositivo.
+          </p>
+
+          <div style={{
+            padding: 'var(--sp-4)',
+            background: 'var(--bg-tertiary)',
+            border: '1px solid var(--border-soft)',
+            borderRadius: 'var(--radius-md)',
+            maxWidth: '500px'
+          }}>
+            {!pushSupported ? (
+              <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--warning)', lineHeight: 1.4 }}>
+                <strong>Não suportado:</strong> Seu navegador ou dispositivo não suporta notificações Push (se estiver no iOS, certifique-se de adicionar o aplicativo à Tela Inicial como PWA).
+              </div>
+            ) : vapidMissing ? (
+              <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--danger)', lineHeight: 1.4 }}>
+                <strong>Configuração ausente:</strong> A chave pública VAPID não está configurada no servidor (VITE_VAPID_PUBLIC_KEY está em falta). Contate o administrador.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-xs)' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Status de Permissão:</span>
+                  <strong style={{
+                    color: permission === 'granted' ? 'var(--success)' : permission === 'denied' ? 'var(--danger)' : 'var(--warning)',
+                    textTransform: 'capitalize'
+                  }}>
+                    {permission === 'granted' ? 'Permitido' : permission === 'denied' ? 'Bloqueado' : 'Não Solicitado'}
+                  </strong>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-xs)' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Inscrição Push:</span>
+                  <strong style={{ color: isSubscribed ? 'var(--success)' : 'var(--text-tertiary)' }}>
+                    {isSubscribed ? 'Ativa' : 'Inativa'}
+                  </strong>
+                </div>
+
+                {pushError && (
+                  <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--danger)', marginTop: 'var(--sp-1)' }}>
+                    {pushError}
+                  </div>
+                )}
+
+                <button
+                  className={`btn ${isSubscribed ? 'btn-secondary' : 'btn-primary'}`}
+                  onClick={handleToggleNotifications}
+                  disabled={submittingPush}
+                  style={{ width: '100%', justifyContent: 'center', marginTop: 'var(--sp-2)' }}
+                >
+                  {submittingPush ? 'Processando...' : isSubscribed ? 'Desativar Notificações' : 'Ativar Notificações'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

@@ -4,7 +4,7 @@ import { useApp } from '../contexts/AppContext';
 import Modal from '../components/Modal';
 import EmptyState from '../components/EmptyState';
 import DateFilter from '../components/DateFilter';
-import { Plus, CheckSquare, Search, Trash2, Edit2, Check, Archive, RotateCcw, GripVertical, Repeat, Zap, CalendarClock, Clock } from 'lucide-react';
+import { Plus, CheckSquare, Search, Trash2, Edit2, Check, Archive, RotateCcw, GripVertical, Repeat, Zap, CalendarClock, Clock, Bell } from 'lucide-react';
 import { formatDate, priorityValue, getToday, isTaskCompleted, getTaskPeriodKey, isFutureTask, DAY_NAMES_FULL } from '../utils/helpers';
 
 const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0]; // Seg → Dom
@@ -12,8 +12,9 @@ const WEEKDAY_LABELS = { 0: 'Domingo', 1: 'Segunda-feira', 2: 'Terça-feira', 3:
 
 const defaultTask = {
   title: '', description: '', priority: 'média', estimatedHours: '',
-  status: 'pendente', dueDate: '', scheduledDate: '', category: '',
+  status: 'pendente', dueDate: '', dueTime: '', scheduledDate: '', category: '',
   recurrence: 'única', recurrenceDay: '',
+  reminderEnabled: false, reminderAt: '', timezone: 'America/Sao_Paulo'
 };
 
 const categories = ['Marketing', 'Conteúdo', 'Produto', 'Operações', 'Estratégia', 'Pessoal', 'Outro'];
@@ -62,7 +63,14 @@ function TaskCard({ task, onToggle, onEdit, onDelete, onDragStart, onDragOver, o
           {task.category && <span className="badge badge-accent" style={{ fontSize: '10px', padding: '1px 6px' }}>{task.category}</span>}
         </div>
         <div style={{ display: 'flex', gap: 'var(--sp-3)', marginTop: '2px', fontSize: 'var(--fs-xs)', color: 'var(--text-tertiary)' }}>
-          {task.dueDate && <span>Prazo: {formatDate(task.dueDate)}</span>}
+          {task.dueDate && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              Prazo: {formatDate(task.dueDate)}{task.dueTime ? ` às ${task.dueTime}` : ''}
+              {task.reminderEnabled && (
+                <Bell size={12} style={{ color: 'var(--accent)', flexShrink: 0 }} title="Lembrete ativado" />
+              )}
+            </span>
+          )}
           {task.scheduledDate && <span>Agendada: {formatDate(task.scheduledDate)}</span>}
           {task.estimatedHours && <span>{task.estimatedHours}h</span>}
           {task.status === 'em_andamento' && <span style={{ color: statusColor.em_andamento }}>{statusLabel.em_andamento}</span>}
@@ -316,10 +324,31 @@ export default function Tasks() {
 
   const handleSubmit = () => {
     if (!form.title.trim()) return;
-    if (editing) {
-      updateItem('tasks', editing, form);
+
+    const taskPayload = { ...form };
+
+    // Validate reminder settings
+    if (taskPayload.reminderEnabled) {
+      if (!taskPayload.dueDate) {
+        alert('A data limite é obrigatória quando o lembrete está ativado.');
+        return;
+      }
+      if (!taskPayload.dueTime) {
+        alert('A hora de vencimento é obrigatória quando o lembrete está ativado.');
+        return;
+      }
+      const [year, month, day] = taskPayload.dueDate.split('-').map(Number);
+      const [hour, minute] = taskPayload.dueTime.split(':').map(Number);
+      const reminderDate = new Date(year, month - 1, day, hour, minute);
+      taskPayload.reminderAt = reminderDate.toISOString();
     } else {
-      createItem('tasks', form);
+      taskPayload.reminderAt = '';
+    }
+
+    if (editing) {
+      updateItem('tasks', editing, taskPayload);
+    } else {
+      createItem('tasks', taskPayload);
     }
     setShowModal(false);
     setEditing(null);
@@ -640,8 +669,24 @@ export default function Tasks() {
               <input className="form-input" type="date" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} />
             </div>
             <div className="form-group">
+              <label className="form-label">Hora de Vencimento</label>
+              <input className="form-input" type="time" value={form.dueTime || ''} onChange={e => setForm({ ...form, dueTime: e.target.value })} />
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group">
               <label className="form-label">Data Agendada</label>
               <input className="form-input" type="date" value={form.scheduledDate} onChange={e => setForm({ ...form, scheduledDate: e.target.value })} />
+            </div>
+            <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', marginTop: '28px' }}>
+              <input
+                type="checkbox"
+                id="task-reminder-checkbox"
+                checked={form.reminderEnabled || false}
+                onChange={e => setForm({ ...form, reminderEnabled: e.target.checked })}
+                style={{ width: '16px', height: '16px', margin: 0, cursor: 'pointer' }}
+              />
+              <label htmlFor="task-reminder-checkbox" style={{ margin: 0, cursor: 'pointer', fontSize: 'var(--fs-sm)', fontWeight: 500 }}>Ativar Lembrete</label>
             </div>
           </div>
           <div className="form-actions">

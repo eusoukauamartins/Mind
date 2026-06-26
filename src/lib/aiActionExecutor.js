@@ -142,6 +142,26 @@ export function validateAndSanitizeAction(module, payload) {
         cleanPayload.scheduledTime = '';
       }
 
+      if (cleanPayload.dueTime) {
+        const t = normalizeTime(cleanPayload.dueTime);
+        if (!t) throw new Error(`Hora de vencimento inválida: "${cleanPayload.dueTime}". Use HH:mm.`);
+        cleanPayload.dueTime = t;
+      } else {
+        cleanPayload.dueTime = '';
+      }
+
+      cleanPayload.reminderEnabled = Boolean(cleanPayload.reminderEnabled);
+
+      if (cleanPayload.reminderAt) {
+        const d = new Date(cleanPayload.reminderAt);
+        if (isNaN(d.getTime())) throw new Error(`Data/hora de lembrete inválida: "${cleanPayload.reminderAt}".`);
+        cleanPayload.reminderAt = d.toISOString();
+      } else {
+        cleanPayload.reminderAt = '';
+      }
+
+      cleanPayload.timezone = String(cleanPayload.timezone || 'America/Sao_Paulo');
+
       // Category validation
       const validTaskCats = ['Marketing', 'Conteúdo', 'Produto', 'Operações', 'Estratégia', 'Pessoal', 'Outro'];
       if (cleanPayload.category) {

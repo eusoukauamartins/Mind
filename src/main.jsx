@@ -18,8 +18,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>,
 )
 
-// Register Service Worker for PWA offline capability in production
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
+// Register Service Worker for PWA offline capability
+const enableSwInDev = import.meta.env.VITE_ENABLE_SW_IN_DEV === 'true';
+if ('serviceWorker' in navigator && (import.meta.env.PROD || enableSwInDev)) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
       .then(reg => {

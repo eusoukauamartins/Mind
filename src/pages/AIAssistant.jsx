@@ -282,6 +282,20 @@ export default function AIAssistant() {
     scrollToBottom();
   }, [messages, loading]);
 
+  // Scroll to bottom when visual viewport height changes (e.g. keyboard opens)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+
+    const handleResize = () => {
+      scrollToBottom();
+    };
+
+    window.visualViewport.addEventListener('resize', handleResize);
+    return () => {
+      window.visualViewport.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
   // Persist settings
   useEffect(() => {
     localStorage.setItem('cp_ai_provider_settings', JSON.stringify(providerSettings));
@@ -1178,9 +1192,13 @@ export default function AIAssistant() {
         }
         @media (max-width: 768px) {
           .ai-page-container {
-            height: calc(100dvh - 56px - 80px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) !important;
+            height: calc(var(--dynamic-viewport-height, 100dvh) - 56px - 80px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) !important;
             padding: var(--sp-3) var(--sp-3) !important;
             gap: var(--sp-2) !important;
+          }
+          body.keyboard-open .ai-page-container {
+            height: calc(var(--dynamic-viewport-height, 100dvh) - 56px - env(safe-area-inset-top, 0px) - 10px) !important;
+            padding: var(--sp-2) var(--sp-2) !important;
           }
           .ai-page-container .page-header {
             margin-bottom: 0 !important;
@@ -1198,6 +1216,20 @@ export default function AIAssistant() {
             max-width: 92%;
           }
         }
+        @media (max-width: 480px) {
+          .ai-composer {
+            padding: var(--sp-2) !important;
+            gap: var(--sp-1) !important;
+          }
+          .ai-composer .btn-icon {
+            padding: 6px !important;
+          }
+          .ai-composer textarea {
+            padding: 8px 10px !important;
+            font-size: var(--fs-xs) !important;
+          }
+        }
+
         .ai-chat-workspace {
           display: flex;
           flex-direction: column;
