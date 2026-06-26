@@ -64,7 +64,7 @@ export default async function handler(req, res) {
           models: ["gpt-4o", "gpt-4o-mini"],
           defaultModel: "gpt-4o",
           imageInput: true,
-          audioInput: hasGemini
+          audioInput: hasGemini || hasOpenAI
         },
         anthropic: {
           configured: hasAnthropic,

@@ -68,7 +68,7 @@ const mobileNavItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/tarefas', icon: CheckSquare, label: 'Tarefas' },
   { to: '/recompensas', icon: Gift, label: 'Recompensas' },
-  { to: '/projetos', icon: FolderKanban, label: 'Projetos' },
+  { to: '/ia', icon: Sparkles, label: 'IA' },
   { to: '/financas', icon: DollarSign, label: 'Finanças' }
 ];
 

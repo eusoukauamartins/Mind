@@ -19,10 +19,7 @@ const PROVIDER_MODELS = {
 };
 
 const PROVIDER_LABELS = {
-  gemini: 'Google Gemini',
-  openai: 'OpenAI',
-  anthropic: 'Anthropic (Em Breve)',
-  xai: 'xAI Grok (Em Breve)'
+  openai: 'OpenAI'
 };
 
 function inferTitleFromMessage(messageText) {
@@ -146,7 +143,8 @@ export default function AIAssistant() {
     try {
       const saved = localStorage.getItem('cp_ai_provider_settings');
       const parsed = saved ? JSON.parse(saved) : null;
-      if (parsed && (parsed.provider === 'gemini' || parsed.provider === 'xai' || parsed.model === 'gpt-4o-mini')) {
+      // Migrate any old non-openai provider selections back to openai
+      if (parsed && (parsed.provider !== 'openai' || parsed.model === 'gpt-4o-mini')) {
         return { provider: 'openai', model: 'gpt-4o' };
       }
       return parsed || { provider: 'openai', model: 'gpt-4o' };
@@ -284,7 +282,7 @@ export default function AIAssistant() {
       const p = currentConversation.provider || 'openai';
       const m = currentConversation.model || 'gpt-4o';
       
-      const supportedProviders = ['openai', 'anthropic'];
+      const supportedProviders = ['openai'];
       const isSupported = supportedProviders.includes(p);
       const isModelValid = PROVIDER_MODELS[p]?.includes(m);
       
@@ -1810,14 +1808,9 @@ export default function AIAssistant() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
               <div>
                 <label style={{ fontSize: '10px', color: 'var(--text-tertiary)', fontWeight: 600, display: 'block', marginBottom: '4px' }}>PROVEDOR:</label>
-                <select 
-                  value={providerSettings.provider} 
-                  onChange={handleProviderChange}
-                  className="form-select-custom"
-                >
-                  <option value="openai">OpenAI</option>
-                  <option value="anthropic">Anthropic (Indisponível)</option>
-                </select>
+                <div className="form-select-custom" style={{ opacity: 0.8, cursor: 'default' }}>
+                  OpenAI
+                </div>
               </div>
 
               <div>
@@ -1873,12 +1866,7 @@ export default function AIAssistant() {
               </div>
               
               {/* controlled warning for unimplemented providers/models */}
-              {providerSettings.provider !== 'openai' && (
-                <div style={{ display: 'flex', gap: '6px', fontSize: '11px', background: 'rgba(231, 76, 60, 0.05)', border: '1px solid rgba(231, 76, 60, 0.2)', color: '#e74c3c', padding: '8px', borderRadius: '4px', marginTop: '4px' }}>
-                  <AlertCircle size={14} style={{ flexShrink: 0, marginTop: '2px' }} />
-                  <span>Este modelo ainda não está implementado no servidor. O endpoint retornará erro controlado se usado.</span>
-                </div>
-              )}
+
             </div>
           </div>
 
