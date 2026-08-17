@@ -793,22 +793,7 @@ export default function Tasks() {
         <DateFilter onChange={setHistoryFilter} />
       )}
 
-      {/* Fast Add */}
-      {activeTab === 'ativas' && (
-        <div style={{ marginBottom: 'var(--sp-4)' }}>
-          <div style={{ position: 'relative' }}>
-            <Plus size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
-            <input
-              className="form-input"
-              placeholder="Adicionar tarefa rapidamente... (Enter para criar)"
-              value={fastAdd}
-              onChange={e => setFastAdd(e.target.value)}
-              onKeyDown={handleFastAdd}
-              style={{ paddingLeft: 36 }}
-            />
-          </div>
-        </div>
-      )}
+      {/* Fast Add (Ocultado do layout principal) */}
 
       {/* Filters */}
       <div className="filter-bar">
