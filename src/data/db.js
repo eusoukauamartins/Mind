@@ -41,10 +41,12 @@ export const db = {
 
   create(collection, item) {
     const items = this.get(collection);
+    const now = new Date().toISOString();
     const newItem = {
       ...item,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
+      id: item.id || crypto.randomUUID(),
+      createdAt: item.createdAt || now,
+      updatedAt: item.updatedAt || now,
       order: items.length > 0 ? Math.max(...items.map(t => t.order || 0)) + 1 : 0
     };
     items.push(newItem);
@@ -56,7 +58,11 @@ export const db = {
     const items = this.get(collection);
     const index = items.findIndex(item => item.id === id);
     if (index === -1) return null;
-    items[index] = { ...items[index], ...updates };
+    items[index] = { 
+      ...items[index], 
+      ...updates,
+      updatedAt: updates.updatedAt || new Date().toISOString()
+    };
     this.set(collection, items);
     return items[index];
   },
@@ -64,11 +70,16 @@ export const db = {
   updateBatch(collection, updatesArray) {
     const items = this.get(collection);
     let changed = false;
+    const now = new Date().toISOString();
     
     for (const update of updatesArray) {
       const index = items.findIndex(item => item.id === update.id);
       if (index !== -1) {
-        items[index] = { ...items[index], ...update.updates };
+        items[index] = { 
+          ...items[index], 
+          ...update.updates,
+          updatedAt: update.updates?.updatedAt || now
+        };
         changed = true;
       }
     }

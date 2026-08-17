@@ -40,7 +40,8 @@ const navGroups = [
   {
     label: 'Conhecimento',
     items: [
-      { to: '/aprendizados', icon: Lightbulb, label: 'Aprendizados' }
+      { to: '/aprendizados', icon: Lightbulb, label: 'Aprendizados' },
+      { to: '/experimentos', icon: FlaskConical, label: 'Experimentos' }
     ]
   },
   {
@@ -79,6 +80,8 @@ export default function Layout({ children }) {
   const appState = useApp();
   const { signOut, isSupabaseConfigured: supaConfigured, user } = useAuth();
 
+  const [swUpdateAvailable, setSwUpdateAvailable] = useState(false);
+
   useEffect(() => {
     // Migrate cp_theme
     let savedTheme = localStorage.getItem('cp_theme') || 'dark-purple-premium';
@@ -97,6 +100,13 @@ export default function Layout({ children }) {
     document.documentElement.setAttribute('data-accent', savedAccent);
   }, []);
 
+  // Listen for SW update notifications
+  useEffect(() => {
+    const handleUpdate = () => setSwUpdateAvailable(true);
+    window.addEventListener('lyria-sw-update-available', handleUpdate);
+    return () => window.removeEventListener('lyria-sw-update-available', handleUpdate);
+  }, []);
+
   // Global visual viewport resize/scroll listeners for safe keyboard/PWA handling
   useEffect(() => {
     if (typeof window === 'undefined' || !window.visualViewport) return;
@@ -105,8 +115,14 @@ export default function Layout({ children }) {
       const height = window.visualViewport.height;
       document.documentElement.style.setProperty('--dynamic-viewport-height', `${height}px`);
 
-      // Detect keyboard open if visual height is significantly shorter than layout height
-      const isKeyboardOpen = height < window.innerHeight - 150;
+      // Robust keyboard detection:
+      // Active on mobile viewports when visualViewport shrinks significantly (< 85% or > 100px difference)
+      const isMobile = window.innerWidth <= 1024;
+      const isKeyboardOpen = isMobile && (
+        height < window.innerHeight * 0.85 ||
+        height < window.innerHeight - 100
+      );
+
       if (isKeyboardOpen) {
         document.body.classList.add('keyboard-open');
       } else {
@@ -342,6 +358,37 @@ export default function Layout({ children }) {
 
       {/* Lyria Daily Quote Popup */}
       <LyriaDailyQuotePopup />
+
+      {/* Floating PWA Update Notification Pill */}
+      {swUpdateAvailable && (
+        <div style={{
+          position: 'fixed',
+          top: 'calc(12px + env(safe-area-inset-top, 0px))',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 9999,
+          background: 'var(--bg-elevated)',
+          border: '1px solid var(--accent)',
+          borderRadius: '9999px',
+          padding: '6px 16px',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          animation: 'slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+        }}>
+          <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-primary)', fontWeight: 500 }}>
+            Nova versão disponível
+          </span>
+          <button
+            onClick={() => window.location.reload()}
+            className="btn btn-primary btn-sm"
+            style={{ padding: '3px 10px', fontSize: '11px', borderRadius: '9999px' }}
+          >
+            Atualizar
+          </button>
+        </div>
+      )}
     </div>
   );
 }

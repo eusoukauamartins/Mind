@@ -3,6 +3,8 @@
  * Performs deep validation, sanitization, and normalization of proposed AI actions.
  */
 
+import { convertZonedToUTCISO } from '../utils/helpers.js';
+
 const ALLOWED_MODULES = ['tasks', 'finance', 'projects', 'rewards', 'learnings', 'experiments'];
 
 /**
@@ -117,6 +119,15 @@ export function validateAndSanitizeAction(module, payload) {
         cleanPayload.recurrence = 'única';
       }
 
+      // Task Type normalization
+      if (cleanPayload.taskType) {
+        const tt = String(cleanPayload.taskType).toLowerCase().trim();
+        if (tt === 'routine' || tt === 'rotina') cleanPayload.taskType = 'routine';
+        else cleanPayload.taskType = 'task';
+      } else {
+        cleanPayload.taskType = (cleanPayload.recurrence === 'diária' || cleanPayload.recurrence === 'semanal') ? 'routine' : 'task';
+      }
+
       // Date & Time normalization
       if (cleanPayload.dueDate) {
         const d = normalizeDate(cleanPayload.dueDate);
@@ -151,16 +162,28 @@ export function validateAndSanitizeAction(module, payload) {
       }
 
       cleanPayload.reminderEnabled = Boolean(cleanPayload.reminderEnabled);
+      cleanPayload.timezone = String(cleanPayload.timezone || 'America/Sao_Paulo');
 
-      if (cleanPayload.reminderAt) {
-        const d = new Date(cleanPayload.reminderAt);
-        if (isNaN(d.getTime())) throw new Error(`Data/hora de lembrete inválida: "${cleanPayload.reminderAt}".`);
-        cleanPayload.reminderAt = d.toISOString();
+      if (cleanPayload.reminderEnabled) {
+        if (cleanPayload.dueDate && cleanPayload.dueTime) {
+          cleanPayload.reminderAt = convertZonedToUTCISO(
+            cleanPayload.dueDate,
+            cleanPayload.dueTime,
+            cleanPayload.timezone
+          );
+        } else if (cleanPayload.reminderAt) {
+          const d = new Date(cleanPayload.reminderAt);
+          if (!isNaN(d.getTime())) {
+            cleanPayload.reminderAt = d.toISOString();
+          } else {
+            cleanPayload.reminderAt = '';
+          }
+        } else {
+          cleanPayload.reminderAt = '';
+        }
       } else {
         cleanPayload.reminderAt = '';
       }
-
-      cleanPayload.timezone = String(cleanPayload.timezone || 'America/Sao_Paulo');
 
       // Category validation
       const validTaskCats = ['Marketing', 'Conteúdo', 'Produto', 'Operações', 'Estratégia', 'Pessoal', 'Outro'];

@@ -8,7 +8,7 @@ import {
   Eye, EyeOff, Settings2, ChevronUp, ChevronDown,
   AlertTriangle, FolderKanban, Check, Gift, Trophy
 } from 'lucide-react';
-import { formatCurrency, getToday, formatDateShort, isTaskCompleted, isTaskActiveOnDate, getTaskPeriodKey } from '../utils/helpers';
+import { formatCurrency, getToday, formatDateShort, isTaskCompleted, isTaskActiveOnDate, getTaskPeriodKey, isRoutineTask } from '../utils/helpers';
 
 const DEFAULT_LAYOUT = [
   { id: 'focus', label: 'Central de Comando', visible: true, order: 0, fullWidth: true },
@@ -201,24 +201,64 @@ export default function Dashboard() {
     const globalExpenses = finance.filter(f => f && f.type === 'saída').reduce((s, f) => s + (Number(f.amount) || 0), 0);
     const currentBankBalance = initialBalance + globalIncome - globalExpenses;
 
-    // Focus Candidates: Top 3 strategic tasks
+    // Focus Candidates: Time-aware strategic focus algorithm
     const priorityWeight = { alta: 0, média: 1, baixa: 2 };
+    const todayTimestamp = new Date(today + 'T00:00:00').getTime();
+
     const focusCandidates = tasks
-      .filter(t =>
-        t.status !== 'excluída' &&
-        !isTaskCompleted(t) &&
-        t.recurrence !== 'diária' &&
-        t.recurrence !== 'semanal'
-      )
+      .filter(t => {
+        if (t.status === 'excluída' || isTaskCompleted(t)) return false;
+        if (isRoutineTask(t)) return false;
+
+        const targetDate = t.scheduledDate || t.dueDate;
+        if (targetDate) {
+          const targetTimestamp = new Date(targetDate + 'T00:00:00').getTime();
+          const diffDays = Math.ceil((targetTimestamp - todayTimestamp) / (1000 * 60 * 60 * 24));
+          // Strictly exclude tasks scheduled/due more than 14 days in the future
+          if (diffDays > 14) return false;
+        }
+        return true;
+      })
+      .map(t => {
+        const targetDate = t.scheduledDate || t.dueDate;
+        let tier = 5; // Default: important unscheduled tasks
+
+        if (targetDate) {
+          const targetTimestamp = new Date(targetDate + 'T00:00:00').getTime();
+          const diffDays = Math.ceil((targetTimestamp - todayTimestamp) / (1000 * 60 * 60 * 24));
+
+          if (diffDays < 0) {
+            tier = 1; // Overdue
+          } else if (t.scheduledDate === today) {
+            tier = 2; // Scheduled today
+          } else if (t.dueDate === today) {
+            tier = 3; // Due today
+          } else if (diffDays <= 7) {
+            tier = 4; // Due/scheduled within 7 days
+          } else if (diffDays <= 14) {
+            tier = 6; // Due/scheduled within 14 days
+          }
+        }
+
+        return { task: t, tier, targetDate: targetDate || '9999-12-31' };
+      })
       .sort((a, b) => {
-        const pa = priorityWeight[a.priority] ?? 1;
-        const pb = priorityWeight[b.priority] ?? 1;
+        // 1. Urgency tier (1 -> 2 -> 3 -> 4 -> 5 -> 6)
+        if (a.tier !== b.tier) return a.tier - b.tier;
+
+        // 2. Priority (alta > média > baixa)
+        const pa = priorityWeight[a.task.priority] ?? 1;
+        const pb = priorityWeight[b.task.priority] ?? 1;
         if (pa !== pb) return pa - pb;
-        const da = a.dueDate || '9999-12-31';
-        const db = b.dueDate || '9999-12-31';
-        if (da !== db) return da.localeCompare(db);
-        return (a.order || 0) - (b.order || 0);
-      });
+
+        // 3. Closest relevant date
+        if (a.targetDate !== b.targetDate) return a.targetDate.localeCompare(b.targetDate);
+
+        // 4. Manual order
+        return (a.task.order || 0) - (b.task.order || 0);
+      })
+      .map(item => item.task);
+
     const topFocusTasks = focusCandidates.slice(0, 3);
 
     // Today's pending tasks (routines or scheduled today)
@@ -232,8 +272,7 @@ export default function Dashboard() {
     const overdueTasks = tasks.filter(t =>
       t.status !== 'excluída' &&
       !isTaskCompleted(t, new Date(today + 'T12:00:00')) &&
-      t.recurrence !== 'diária' &&
-      t.recurrence !== 'semanal' &&
+      !isRoutineTask(t) &&
       ((t.scheduledDate && t.scheduledDate < today) || (t.dueDate && t.dueDate < today))
     );
 

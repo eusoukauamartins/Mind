@@ -802,6 +802,37 @@ export async function importFullBackup(importedData, mappers, refreshAll) {
             console.warn('[Lyria Import] Tabela "rewards" ausente. Recompensas mantidas apenas localmente (rode a migration 002).');
             continue;
           }
+        } else if (stateKey === 'tasks') {
+          // Retry for tasks without task_type or reminder columns if legacy schema
+          console.log('[Lyria Import Debug - Tasks] Table column mismatch. Retrying without task_type...');
+          const strippedTaskType = payload.map(t => {
+            const copy = { ...t };
+            delete copy.task_type;
+            return copy;
+          });
+          let retryError = await upsertChunks(table, strippedTaskType);
+          if (!retryError) {
+            console.warn('[Lyria Import] Tarefas enviadas sem coluna task_type (rode a migration 010).');
+            uploadCounts.push(`${stateKey}: ${count} (sem coluna task_type)`);
+            continue;
+          }
+          if (isMissingSchemaError(retryError)) {
+            const strippedAllTasks = payload.map(t => {
+              const copy = { ...t };
+              delete copy.task_type;
+              delete copy.due_time;
+              delete copy.reminder_enabled;
+              delete copy.reminder_at;
+              delete copy.timezone;
+              return copy;
+            });
+            retryError = await upsertChunks(table, strippedAllTasks);
+            if (!retryError) {
+              console.warn('[Lyria Import] Tarefas enviadas sem colunas de lembrete/task_type (rode migrations 008 e 010).');
+              uploadCounts.push(`${stateKey}: ${count} (legado)`);
+              continue;
+            }
+          }
           uploadError = retryError;
         } else if (stateKey === 'weeklyReviews') {
           remoteSkipped.add(stateKey);

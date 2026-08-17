@@ -1799,6 +1799,18 @@ tr:hover td {
     justify-content: space-around;
   }
 
+  body.keyboard-open .mobile-bottom-nav {
+    display: none !important;
+  }
+
+  body.keyboard-open .main-content {
+    padding-bottom: 0 !important;
+  }
+
+  body.keyboard-open .quick-add-menu {
+    display: none !important;
+  }
+
   .mobile-bottom-nav a {
     display: flex;
     flex-direction: column;

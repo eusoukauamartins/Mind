@@ -184,12 +184,30 @@ export default function AIAssistant() {
   const [transcriptionStatus, setTranscriptionStatus] = useState('idle'); // idle, transcribing, completed, error
   const [transcribedText, setTranscribedText] = useState('');
 
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState(() => {
+    try {
+      return localStorage.getItem('cp_ai_draft') || '';
+    } catch (e) {
+      return '';
+    }
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  // Persist draft in localStorage
+  useEffect(() => {
+    try {
+      if (input) {
+        localStorage.setItem('cp_ai_draft', input);
+      } else {
+        localStorage.removeItem('cp_ai_draft');
+      }
+    } catch (e) {}
+  }, [input]);
 
   // Audio recording Refs
   const mediaRecorderRef = useRef(null);
@@ -273,21 +291,32 @@ export default function AIAssistant() {
     };
   }, []);
 
-  // Auto-scroll to bottom of chat
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // Auto-scroll to bottom of chat for new messages
+  const scrollToBottom = (behavior = 'smooth') => {
+    if (messagesContainerRef.current) {
+      if (behavior === 'smooth') {
+        messagesContainerRef.current.scrollTo({
+          top: messagesContainerRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+      } else {
+        messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+      }
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior });
+    }
   };
 
   useEffect(() => {
-    scrollToBottom();
+    scrollToBottom('smooth');
   }, [messages, loading]);
 
-  // Scroll to bottom when visual viewport height changes (e.g. keyboard opens)
+  // Scroll to bottom when visual viewport height changes (e.g. keyboard opens/closes) without smooth jitter
   useEffect(() => {
     if (typeof window === 'undefined' || !window.visualViewport) return;
 
     const handleResize = () => {
-      scrollToBottom();
+      scrollToBottom('auto');
     };
 
     window.visualViewport.addEventListener('resize', handleResize);
@@ -839,6 +868,9 @@ export default function AIAssistant() {
 
     setError(null);
     setInput('');
+    try {
+      localStorage.removeItem('cp_ai_draft');
+    } catch (e) {}
     
     // Save only metadata for attachments/audio (prevent localStorage bloating)
     const userMessage = {
@@ -1192,12 +1224,14 @@ export default function AIAssistant() {
         }
         @media (max-width: 768px) {
           .ai-page-container {
-            height: calc(var(--dynamic-viewport-height, 100dvh) - 56px - 80px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) !important;
-            padding: var(--sp-3) var(--sp-3) !important;
+            height: calc(var(--dynamic-viewport-height, 100dvh) - 56px - 64px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) !important;
+            padding: var(--sp-2) var(--sp-2) !important;
             gap: var(--sp-2) !important;
+            min-height: 0 !important;
+            overflow: hidden !important;
           }
           body.keyboard-open .ai-page-container {
-            height: calc(var(--dynamic-viewport-height, 100dvh) - 56px - env(safe-area-inset-top, 0px) - 10px) !important;
+            height: calc(var(--dynamic-viewport-height, 100dvh) - 56px - env(safe-area-inset-top, 0px)) !important;
             padding: var(--sp-2) var(--sp-2) !important;
           }
           .ai-page-container .page-header {
@@ -1215,6 +1249,9 @@ export default function AIAssistant() {
           .ai-message-bubble-wrap {
             max-width: 92%;
           }
+          .ai-composer textarea {
+            font-size: 16px !important;
+          }
         }
         @media (max-width: 480px) {
           .ai-composer {
@@ -1226,7 +1263,7 @@ export default function AIAssistant() {
           }
           .ai-composer textarea {
             padding: 8px 10px !important;
-            font-size: var(--fs-xs) !important;
+            font-size: 16px !important;
           }
         }
 
@@ -1491,7 +1528,7 @@ export default function AIAssistant() {
           <div className="card ai-chat-card" style={{ padding: 0, border: '1px solid var(--border-soft)', background: 'var(--bg-secondary)' }}>
             
             {/* Scrollable Message Box */}
-            <div className="ai-message-list" style={{ padding: 'var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
+            <div ref={messagesContainerRef} className="ai-message-list" style={{ padding: 'var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
               {messages.length === 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-secondary)', textAlign: 'center', padding: 'var(--sp-6)', margin: 'auto 0' }}>
                   <Bot size={48} color="var(--accent)" style={{ opacity: 0.8, marginBottom: 'var(--sp-3)' }} />
@@ -1900,7 +1937,7 @@ export default function AIAssistant() {
                     borderRadius: 'var(--radius-sm)',
                     color: 'var(--text-primary)',
                     padding: '10px 12px',
-                    fontSize: 'var(--fs-sm)',
+                    fontSize: '16px',
                     resize: 'none',
                     height: '40px',
                     fontFamily: 'inherit',

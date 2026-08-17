@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lyria-static-v3';
+const CACHE_NAME = 'lyria-static-v4';
 console.log('[Lyria PWA] Service Worker loaded. Cache version:', CACHE_NAME);
 
 // Dynamic caching service worker.

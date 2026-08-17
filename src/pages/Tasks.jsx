@@ -4,14 +4,15 @@ import { useApp } from '../contexts/AppContext';
 import Modal from '../components/Modal';
 import EmptyState from '../components/EmptyState';
 import DateFilter from '../components/DateFilter';
-import { Plus, CheckSquare, Search, Trash2, Edit2, Check, Archive, RotateCcw, GripVertical, Repeat, Zap, CalendarClock, Clock, Bell } from 'lucide-react';
-import { formatDate, priorityValue, getToday, isTaskCompleted, getTaskPeriodKey, isFutureTask, DAY_NAMES_FULL } from '../utils/helpers';
+import { Plus, CheckSquare, Search, Trash2, Edit2, Check, Archive, RotateCcw, GripVertical, Repeat, Zap, CalendarClock, Clock, Bell, ChevronDown, ChevronRight } from 'lucide-react';
+import { formatDate, priorityValue, getToday, isTaskCompleted, getTaskPeriodKey, isFutureTask, isRoutineTask, convertZonedToUTCISO, DAY_NAMES_FULL } from '../utils/helpers';
 
 const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0]; // Seg → Dom
 const WEEKDAY_LABELS = { 0: 'Domingo', 1: 'Segunda-feira', 2: 'Terça-feira', 3: 'Quarta-feira', 4: 'Quinta-feira', 5: 'Sexta-feira', 6: 'Sábado' };
 
 const defaultTask = {
   title: '', description: '', priority: 'média', estimatedHours: '',
+  taskType: 'task',
   status: 'pendente', dueDate: '', dueTime: '', scheduledDate: '', category: '',
   recurrence: 'única', recurrenceDay: '',
   reminderEnabled: false, reminderAt: '', timezone: 'America/Sao_Paulo'
@@ -146,8 +147,24 @@ function TaskColumn({ title, icon: Icon, tasks, modifier, onToggle, onEdit, onDe
   );
 }
 
-// Routine column — daily + weekly tasks with internal sections
+// Routine column — daily + weekly tasks with internal collapsible sections
 function RoutineColumn({ dailyTasks, weeklyByDay, todayWeekday, onToggle, onEdit, onDelete, onDragStart, onDrop, draggableId, setDraggableId, draggedId }) {
+  const [collapsedSections, setCollapsedSections] = useState(() => {
+    // Keep other days collapsed by default, today & daily expanded
+    const initial = {};
+    WEEKDAY_ORDER.forEach(d => {
+      if (d !== todayWeekday) initial[d] = true;
+    });
+    return initial;
+  });
+
+  const toggleSection = (key) => {
+    setCollapsedSections(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
   const totalCount = dailyTasks.length + Object.values(weeklyByDay).reduce((s, arr) => s + arr.length, 0);
 
   // Order weekdays: today first, then the rest in order
@@ -187,34 +204,68 @@ function RoutineColumn({ dailyTasks, weeklyByDay, todayWeekday, onToggle, onEdit
           <>
             {/* Section A — Daily */}
             {dailyTasks.length > 0 && (
-              <>
-                <div style={{ fontSize: 'var(--fs-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--accent)', marginBottom: 'var(--sp-1)', marginTop: 'var(--sp-1)' }}>
-                  Diárias
+              <div style={{ marginBottom: 'var(--sp-2)' }}>
+                <div 
+                  onClick={() => toggleSection('daily')}
+                  style={{
+                    fontSize: 'var(--fs-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em',
+                    color: 'var(--accent)', marginBottom: 'var(--sp-1)', marginTop: 'var(--sp-1)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer',
+                    userSelect: 'none', padding: '3px 6px', borderRadius: 'var(--radius-sm)'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {collapsedSections['daily'] ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                    <span>Diárias</span>
+                  </div>
+                  <span style={{ fontSize: '10px', background: 'var(--accent-subtle)', color: 'var(--accent)', padding: '1px 6px', borderRadius: 'var(--radius-full)' }}>
+                    {dailyTasks.length}
+                  </span>
                 </div>
-                {renderCards(dailyTasks, "routine-today")}
-              </>
+                {!collapsedSections['daily'] && renderCards(dailyTasks, "routine-today")}
+              </div>
             )}
 
             {/* Section B — Weekly by weekday */}
-            {sortedDays.map(day => (
-              <div key={day}>
-                {(dailyTasks.length > 0 || sortedDays.indexOf(day) > 0) && (
-                  <div style={{ height: 1, background: 'var(--border-soft)', margin: 'var(--sp-3) 0', opacity: 0.6 }} />
-                )}
-                <div style={{
-                  fontSize: 'var(--fs-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em',
-                  color: day === todayWeekday ? 'var(--accent)' : 'var(--text-tertiary)',
-                  marginBottom: 'var(--sp-1)',
-                  display: 'flex', alignItems: 'center', gap: 'var(--sp-2)',
-                }}>
-                  {WEEKDAY_LABELS[day]}
-                  {day === todayWeekday && (
-                    <span style={{ fontSize: '9px', background: 'var(--accent)', color: '#ffffff', padding: '1px 6px', borderRadius: 'var(--radius-full)', fontWeight: 700 }}>HOJE</span>
+            {sortedDays.map(day => {
+              const isTodayDay = day === todayWeekday;
+              const isCollapsed = Boolean(collapsedSections[day]);
+              const dayTasks = weeklyByDay[day] || [];
+
+              return (
+                <div key={day} style={{ marginBottom: 'var(--sp-2)' }}>
+                  {(dailyTasks.length > 0 || sortedDays.indexOf(day) > 0) && (
+                    <div style={{ height: 1, background: 'var(--border-soft)', margin: 'var(--sp-2) 0', opacity: 0.6 }} />
                   )}
+                  <div 
+                    onClick={() => toggleSection(day)}
+                    style={{
+                      fontSize: 'var(--fs-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em',
+                      color: isTodayDay ? 'var(--accent)' : 'var(--text-tertiary)',
+                      marginBottom: 'var(--sp-1)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer',
+                      userSelect: 'none', padding: '3px 6px', borderRadius: 'var(--radius-sm)'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                      <span>{WEEKDAY_LABELS[day]}</span>
+                      {isTodayDay && (
+                        <span style={{ fontSize: '9px', background: 'var(--accent)', color: '#ffffff', padding: '1px 6px', borderRadius: 'var(--radius-full)', fontWeight: 700 }}>HOJE</span>
+                      )}
+                    </div>
+                    <span style={{ fontSize: '10px', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', padding: '1px 6px', borderRadius: 'var(--radius-full)' }}>
+                      {dayTasks.length}
+                    </span>
+                  </div>
+                  {!isCollapsed && renderCards(dayTasks, isTodayDay ? "routine-today" : "routine-other")}
                 </div>
-                {renderCards(weeklyByDay[day], day === todayWeekday ? "routine-today" : "routine-other")}
-              </div>
-            ))}
+              );
+            })}
           </>
         )}
       </div>
@@ -269,11 +320,14 @@ export default function Tasks() {
     return result;
   }, [tasks, search, filterPriority, filterStatus, sortBy]);
 
-  // Split active tasks into 3 columns
-  const dailyTasks = useMemo(() => activeTasks.filter(t => t.recurrence === 'diária'), [activeTasks]);
-  const weeklyTasks = useMemo(() => activeTasks.filter(t => t.recurrence === 'semanal'), [activeTasks]);
-  const scheduledTasks = useMemo(() => activeTasks.filter(t => t.recurrence !== 'diária' && t.recurrence !== 'semanal' && isFutureTask(t)), [activeTasks]);
-  const pendingTasks = useMemo(() => activeTasks.filter(t => t.recurrence !== 'diária' && t.recurrence !== 'semanal' && !isFutureTask(t)), [activeTasks]);
+  // Split active tasks into Routine vs Ordinary (Scheduled / Pending)
+  const routineTasks = useMemo(() => activeTasks.filter(t => isRoutineTask(t)), [activeTasks]);
+  const dailyTasks = useMemo(() => routineTasks.filter(t => t.recurrence === 'diária' || (!t.recurrence && !t.recurrenceDay)), [routineTasks]);
+  const weeklyTasks = useMemo(() => routineTasks.filter(t => t.recurrence === 'semanal'), [routineTasks]);
+
+  const ordinaryTasks = useMemo(() => activeTasks.filter(t => !routineTasks.includes(t)), [activeTasks, routineTasks]);
+  const scheduledTasks = useMemo(() => ordinaryTasks.filter(t => isFutureTask(t)), [ordinaryTasks]);
+  const pendingTasks = useMemo(() => ordinaryTasks.filter(t => !isFutureTask(t)), [ordinaryTasks]);
 
   // Group weekly tasks by weekday
   const todayWeekday = new Date().getDay();
@@ -337,10 +391,11 @@ export default function Tasks() {
         alert('A hora de vencimento é obrigatória quando o lembrete está ativado.');
         return;
       }
-      const [year, month, day] = taskPayload.dueDate.split('-').map(Number);
-      const [hour, minute] = taskPayload.dueTime.split(':').map(Number);
-      const reminderDate = new Date(year, month - 1, day, hour, minute);
-      taskPayload.reminderAt = reminderDate.toISOString();
+      taskPayload.reminderAt = convertZonedToUTCISO(
+        taskPayload.dueDate,
+        taskPayload.dueTime,
+        taskPayload.timezone || 'America/Sao_Paulo'
+      );
     } else {
       taskPayload.reminderAt = '';
     }
@@ -362,7 +417,7 @@ export default function Tasks() {
   };
 
   const handleToggleComplete = (task) => {
-    if (task.recurrence === 'diária' || task.recurrence === 'semanal') {
+    if (task.recurrence === 'diária' || task.recurrence === 'semanal' || task.recurrence === 'mensal') {
       const periodKey = getTaskPeriodKey(task);
       const history = task.completedDates || [];
       if (history.includes(periodKey)) {
@@ -582,6 +637,27 @@ export default function Tasks() {
       {/* Modal */}
       {showModal && (
         <Modal title={editing ? 'Editar Tarefa' : 'Nova Tarefa'} onClose={() => { setShowModal(false); setEditing(null); }}>
+          <div className="form-group">
+            <label className="form-label">Tipo de Item</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--sp-2)' }}>
+              <button
+                type="button"
+                className={`btn ${form.taskType !== 'routine' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setForm({ ...form, taskType: 'task', recurrence: form.recurrence === 'diária' ? 'única' : (form.recurrence || 'única') })}
+                style={{ justifyContent: 'center', fontSize: 'var(--fs-sm)', padding: '8px' }}
+              >
+                <CheckSquare size={14} /> Tarefa
+              </button>
+              <button
+                type="button"
+                className={`btn ${form.taskType === 'routine' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setForm({ ...form, taskType: 'routine', recurrence: (form.recurrence === 'única' || !form.recurrence) ? 'diária' : form.recurrence })}
+                style={{ justifyContent: 'center', fontSize: 'var(--fs-sm)', padding: '8px' }}
+              >
+                <Repeat size={14} /> Rotina
+              </button>
+            </div>
+          </div>
           <div className="form-group">
             <label className="form-label">Título *</label>
             <input className="form-input" placeholder="O que precisa ser feito?" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} autoFocus />

@@ -225,6 +225,7 @@ Módulo "tasks":
 - priority: string (opcional, valores permitidos: 'baixa', 'média', 'alta')
 - estimatedHours: string (opcional, horas estimadas)
 - status: string (opcional, valor padrão 'pendente', valores permitidos: 'pendente', 'em_andamento', 'concluída')
+- taskType: string (opcional, 'task' para tarefa avulsa ou 'routine' para rotina, padrão 'task' ou 'routine' se recorrência for diária/semanal)
 - dueDate: string (opcional, data de vencimento no formato YYYY-MM-DD)
 - dueTime: string (opcional, hora de vencimento no formato HH:mm, obrigatório se reminderEnabled for true)
 - reminderEnabled: boolean (opcional, padrão false)

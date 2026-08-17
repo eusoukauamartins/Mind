@@ -8,7 +8,8 @@ export const SYNCABLE_SETTINGS = [
   'cp_initial_balance',
   'cp_financialGoal_v2',
   'cp_dashboard_layout',
-  'cp_finance_import_rules'
+  'cp_finance_import_rules',
+  'cp_learnings_category_order'
 ];
 
 /**

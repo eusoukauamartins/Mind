@@ -6,11 +6,17 @@ import { isSyncBlocked } from './resetAndImport.js';
  * Maps a database task record to the client-side task schema.
  */
 export function mapRemoteToLocalTask(remote) {
+  const explicitType = remote.task_type;
+  const resolvedTaskType = (explicitType === 'task' || explicitType === 'routine')
+    ? explicitType
+    : ((remote.recurrence === 'diária' || remote.recurrence === 'semanal') ? 'routine' : 'task');
+
   return {
     id: remote.id,
     title: remote.title,
     description: remote.description || '',
     priority: remote.priority || 'média',
+    taskType: resolvedTaskType,
     estimatedHours: remote.estimated_hours !== null && remote.estimated_hours !== undefined ? String(remote.estimated_hours) : '',
     status: remote.status || 'pendente',
     dueDate: remote.due_date || '',
@@ -35,12 +41,18 @@ export function mapRemoteToLocalTask(remote) {
  * Maps a client-side task object to the database task schema.
  */
 export function mapLocalToRemoteTask(local, userId) {
+  const explicitLocalType = local.taskType;
+  const resolvedTaskType = (explicitLocalType === 'task' || explicitLocalType === 'routine')
+    ? explicitLocalType
+    : ((local.recurrence === 'diária' || local.recurrence === 'semanal') ? 'routine' : 'task');
+
   return {
     id: local.id,
     user_id: userId,
     title: local.title,
     description: local.description || null,
     priority: local.priority || 'média',
+    task_type: resolvedTaskType,
     estimated_hours: local.estimatedHours ? parseFloat(local.estimatedHours) : null,
     status: local.status || 'pendente',
     due_date: local.dueDate || null,

@@ -101,11 +101,17 @@ function safeGetAll(collectionKey) {
     case COLLECTIONS.TASKS:
       return rawData.map(t => {
         if (!t) return null;
+        const rawType = t.taskType || t.task_type;
+        const taskType = (rawType === 'task' || rawType === 'routine')
+          ? rawType
+          : ((t.recurrence === 'diária' || t.recurrence === 'semanal') ? 'routine' : 'task');
+
         return {
           ...t,
           id: t.id || crypto.randomUUID(),
           title: String(t.title || 'Sem Título'),
           priority: String(t.priority || 'média'),
+          taskType: taskType,
           status: String(t.status || 'pendente'),
           dueDate: String(t.dueDate || t.due_date || ''),
           dueTime: String(t.dueTime !== undefined ? t.dueTime : (t.due_time !== undefined ? t.due_time : '')),
@@ -259,6 +265,7 @@ function safeGetAll(collectionKey) {
           redeemedAt: r.redeemedAt || r.redeemed_at || '',
           archivedAt: r.archivedAt || r.archived_at || '',
           createdAt: r.createdAt || r.created_at || new Date().toISOString(),
+          updatedAt: r.updatedAt || r.updated_at || r.createdAt || r.created_at || new Date().toISOString(),
           financialTargetAmount: fTarget,
           financialCurrentAmount: fCurrent,
           showOnDashboard: r.showOnDashboard === true || r.show_on_dashboard === true,
@@ -493,18 +500,25 @@ export function AppProvider({ children }) {
       if (activeUser && supabase) {
         const remoteItem = config.mapLocal(result, activeUser.id);
         console.log(`[Lyria Batch 1 Create Sync] Insert Payload:`, remoteItem);
-        supabase
-          .from(config.table)
-          .insert(remoteItem)
+        const query = stateKey === 'rewards'
+          ? supabase.from(config.table).upsert(remoteItem, { onConflict: 'id' })
+          : supabase.from(config.table).insert(remoteItem);
+
+        query
           .then(({ error }) => {
             if (error) {
-              console.error(`[Lyria Batch 1 Create Sync] Error:`, error.message, error);
+              console.error(`[Lyria Batch 1 Create Sync] Error for ${stateKey} (id: ${remoteItem.id}):`, {
+                code: error.code,
+                message: error.message,
+                details: error.details,
+                hint: error.hint
+              });
             } else {
-              console.log(`[Lyria Batch 1 Create Sync] Success: true`);
+              console.log(`[Lyria Batch 1 Create Sync] Success for ${stateKey}: true`);
             }
           })
           .catch(err => {
-            console.error(`[Lyria Batch 1 Create Sync] Error Exception:`, err);
+            console.error(`[Lyria Batch 1 Create Sync] Error Exception for ${stateKey}:`, err);
           });
       } else {
         console.log(`[Lyria Batch 1 Create Sync] Skip: activeUser or supabase is null (User: ${activeUser ? activeUser.id : 'null'})`);
@@ -531,7 +545,12 @@ export function AppProvider({ children }) {
           .upsert(remoteItem, { onConflict: 'id' })
           .then(({ error }) => {
             if (error) {
-              console.error(`[Lyria AppContext] update error for ${stateKey}:`, error.message, error);
+              console.error(`[Lyria AppContext] update error for ${stateKey} (id: ${remoteItem.id}):`, {
+                code: error.code,
+                message: error.message,
+                details: error.details,
+                hint: error.hint
+              });
             } else {
               console.log(`[Lyria AppContext] update success for ${stateKey}.`);
             }
@@ -568,7 +587,12 @@ export function AppProvider({ children }) {
             .upsert(payload, { onConflict: 'id' })
             .then(({ error }) => {
               if (error) {
-                console.error(`[Lyria AppContext] batch update error for ${stateKey}:`, error.message, error);
+                console.error(`[Lyria AppContext] batch update error for ${stateKey}:`, {
+                  code: error.code,
+                  message: error.message,
+                  details: error.details,
+                  hint: error.hint
+                });
               } else {
                 console.log(`[Lyria AppContext] batch update success for ${stateKey}.`);
               }

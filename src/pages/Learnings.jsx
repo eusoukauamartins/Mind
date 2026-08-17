@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useApp } from '../contexts/AppContext';
+import { saveSetting } from '../lib/settingsSync';
 import Modal from '../components/Modal';
 import EmptyState from '../components/EmptyState';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import { BookOpen, Plus, Search, Star, Trash2, Edit2, GripVertical, ChevronDown, ChevronRight, X } from 'lucide-react';
+import { BookOpen, Plus, Search, Star, Trash2, Edit2, GripVertical, ChevronDown, ChevronRight, ArrowUp, ArrowDown, X } from 'lucide-react';
 import { toLocalISODate } from '../utils/helpers';
 
 const normalizeTag = (tag) => {
@@ -32,6 +33,53 @@ export default function Learnings() {
   const [selectedTagFilter, setSelectedTagFilter] = useState('');
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
   const tagInputRef = useRef(null);
+
+  const [categoryOrder, setCategoryOrder] = useState(() => {
+    try {
+      const saved = localStorage.getItem('cp_learnings_category_order');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error('Error loading category order:', e);
+    }
+    return [];
+  });
+
+  const [collapsedCategories, setCollapsedCategories] = useState(() => {
+    try {
+      const saved = localStorage.getItem('cp_learnings_collapsed_categories');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed === 'object' && parsed !== null) return parsed;
+      }
+    } catch (e) {}
+    return {};
+  });
+
+  const toggleCategoryCollapse = (groupKey) => {
+    setCollapsedCategories(prev => {
+      const next = { ...prev, [groupKey]: !prev[groupKey] };
+      localStorage.setItem('cp_learnings_collapsed_categories', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const moveCategory = (groupKey, direction, e) => {
+    e?.stopPropagation();
+    const keys = Array.from(groupedLearnings.sortedKeys);
+    const index = keys.indexOf(groupKey);
+    if (index === -1) return;
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= keys.length) return;
+
+    const [moved] = keys.splice(index, 1);
+    keys.splice(targetIndex, 0, moved);
+
+    setCategoryOrder(keys);
+    saveSetting('cp_learnings_category_order', keys);
+  };
 
   const tagStats = useMemo(() => {
     const stats = {};
@@ -92,15 +140,21 @@ export default function Learnings() {
       groups[key].sort((a, b) => (a.order || 0) - (b.order || 0));
     });
 
-    // Sort group keys alphabetically, keeping 'geral' at the end
-    const sortedKeys = Object.keys(groups).sort((a, b) => {
+    // Sort group keys by saved categoryOrder, append new categories alphabetically, and keep 'geral' at the end
+    const allGroupKeys = Object.keys(groups);
+    const orderMap = new Map(categoryOrder.map((key, index) => [key, index]));
+
+    const sortedKeys = allGroupKeys.sort((a, b) => {
       if (a === 'geral') return 1;
       if (b === 'geral') return -1;
+      const orderA = orderMap.has(a) ? orderMap.get(a) : 9999;
+      const orderB = orderMap.has(b) ? orderMap.get(b) : 9999;
+      if (orderA !== orderB) return orderA - orderB;
       return a.localeCompare(b);
     });
 
     return { groups, sortedKeys };
-  }, [learnings, searchTerm, showFavoritesOnly]);
+  }, [learnings, searchTerm, showFavoritesOnly, selectedTagFilter, categoryOrder]);
 
   const toggleExpanded = (id) => {
     setExpandedIds(prev => ({ ...prev, [id]: !prev[id] }));
@@ -160,19 +214,30 @@ export default function Learnings() {
 
   const handleDragEnd = (result) => {
     if (!result.destination) return;
+
+    // 1. Category drag and drop
+    if (result.type === 'CATEGORY') {
+      const reorderedKeys = Array.from(groupedLearnings.sortedKeys);
+      const [movedKey] = reorderedKeys.splice(result.source.index, 1);
+      reorderedKeys.splice(result.destination.index, 0, movedKey);
+
+      setCategoryOrder(reorderedKeys);
+      saveSetting('cp_learnings_category_order', reorderedKeys);
+      return;
+    }
+
+    // 2. Learning items drag and drop within category
     const groupKey = result.source.droppableId;
-    
-    // For simplicity, we only allow reordering inside the same category visual group
     if (result.destination.droppableId !== groupKey) return;
 
-    const groupItems = Array.from(groupedLearnings.groups[groupKey]);
+    const groupItems = Array.from(groupedLearnings.groups[groupKey] || []);
     const [reorderedItem] = groupItems.splice(result.source.index, 1);
     groupItems.splice(result.destination.index, 0, reorderedItem);
 
-    // Prepare batch update
+    // Prepare batch update with proper 'updates' property matching db.updateBatch
     const updates = groupItems.map((item, index) => ({
       id: item.id,
-      changes: { order: index }
+      updates: { order: index }
     }));
     
     updateBatch('learnings', updates);
@@ -241,140 +306,240 @@ export default function Learnings() {
         </div>
       ) : (
         <DragDropContext onDragEnd={handleDragEnd}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-8)' }}>
-            {groupedLearnings.sortedKeys.map(groupKey => (
-              <div key={groupKey}>
-                <h3 style={{ 
-                  fontSize: 'var(--fs-sm)', 
-                  fontWeight: 600, 
-                  textTransform: 'uppercase', 
-                  letterSpacing: '0.05em', 
-                  color: 'var(--text-tertiary)',
-                  marginBottom: 'var(--sp-3)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--sp-2)'
-                }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)' }}></div>
-                  {groupKey}
-                  <span style={{ fontSize: 'var(--fs-xs)', background: 'var(--bg-tertiary)', padding: '2px 8px', borderRadius: '10px' }}>
-                    {groupedLearnings.groups[groupKey].length}
-                  </span>
-                </h3>
+          <Droppable droppableId="categories-droppable" type="CATEGORY">
+            {(catProvided) => (
+              <div 
+                ref={catProvided.innerRef}
+                {...catProvided.droppableProps}
+                style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-6)' }}
+              >
+                {groupedLearnings.sortedKeys.map((groupKey, groupIndex) => {
+                  const isCategoryCollapsed = Boolean(collapsedCategories[groupKey]);
+                  const groupItems = groupedLearnings.groups[groupKey] || [];
 
-                <Droppable droppableId={groupKey}>
-                  {(provided) => (
-                    <div 
-                      {...provided.droppableProps} 
-                      ref={provided.innerRef}
-                      style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}
-                    >
-                      {groupedLearnings.groups[groupKey].map((item, index) => {
-                        const isExpanded = expandedIds[item.id];
-                        
-                        return (
-                          <Draggable key={item.id} draggableId={item.id} index={index}>
-                            {(provided, snapshot) => {
-                              const draggableStyle = {
-                                ...provided.draggableProps.style,
-                                padding: 'var(--sp-3)',
-                                cursor: 'pointer',
-                                background: snapshot.isDragging ? 'var(--bg-hover)' : 'var(--bg-secondary)',
-                                border: item.isFavorite ? '1px solid var(--warning-subtle)' : '1px solid var(--border)',
-                                boxShadow: snapshot.isDragging ? 'var(--shadow-lg)' : 'none',
-                                opacity: snapshot.isDragging ? 0.95 : 1,
-                                zIndex: snapshot.isDragging ? 100 : 'auto',
-                              };
-
-                              // Lock drag axis to vertical only
-                              if (draggableStyle.transform) {
-                                draggableStyle.transform = draggableStyle.transform.replace(/translate\([^,]+,/, 'translate(0px,');
-                              }
-
-                              return (
-                                <div
-                                  ref={provided.innerRef}
-                                  {...provided.draggableProps}
-                                  className="project-card"
-                                  onClick={() => toggleExpanded(item.id)}
-                                  style={draggableStyle}
-                                >
-                                <div style={{ display: 'flex', gap: 'var(--sp-3)' }}>
-                                  <div 
-                                    {...provided.dragHandleProps}
-                                    style={{ display: 'flex', alignItems: 'flex-start', paddingTop: 2, cursor: 'grab', color: 'var(--text-tertiary)' }}
-                                    title="Arrastar para reordenar"
-                                    onClick={e => e.stopPropagation()}
-                                  >
-                                    <GripVertical size={16} />
-                                  </div>
-                                  
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ 
-                                      fontSize: 'var(--fs-sm)', 
-                                      color: 'var(--text-primary)', 
-                                      lineHeight: 1.6,
-                                      whiteSpace: 'pre-wrap',
-                                      display: isExpanded ? 'block' : '-webkit-box',
-                                      WebkitLineClamp: isExpanded ? 'unset' : 3,
-                                      WebkitBoxOrient: 'vertical',
-                                      overflow: 'hidden'
-                                    }}>
-                                      {item.content}
-                                    </div>
-                                    
-                                    {isExpanded && (
-                                      <div style={{ marginTop: 'var(--sp-4)', paddingTop: 'var(--sp-3)', borderTop: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', gap: 'var(--sp-4)', alignItems: 'center', fontSize: 'var(--fs-xs)', color: 'var(--text-tertiary)' }}>
-                                        {item.source && (
-                                          <div><strong>Fonte:</strong> {item.source}</div>
-                                        )}
-                                        {item.date && (
-                                          <div><strong>Registrado em:</strong> {item.date.split('-').reverse().join('/')}</div>
-                                        )}
-                                        {item.tags && item.tags.length > 0 && (
-                                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                                            {item.tags.map(t => (
-                                              <span key={t} style={{ background: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: '4px' }}>#{t}</span>
-                                            ))}
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', alignItems: 'center' }} onClick={e => e.stopPropagation()}>
-                                    <button 
-                                      className="btn-icon btn-ghost" 
-                                      onClick={(e) => toggleFavorite(item.id, item.isFavorite, e)}
-                                      style={{ color: item.isFavorite ? 'var(--warning)' : 'var(--text-tertiary)' }}
-                                    >
-                                      <Star size={16} fill={item.isFavorite ? "currentColor" : "none"} />
-                                    </button>
-                                    {isExpanded && (
-                                      <>
-                                        <button className="btn-icon btn-ghost" onClick={(e) => handleEdit(item, e)}>
-                                          <Edit2 size={14} />
-                                        </button>
-                                        <button className="btn-icon btn-ghost" onClick={(e) => handleDelete(item.id, e)} style={{ color: 'var(--danger)' }}>
-                                          <Trash2 size={14} />
-                                        </button>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            );
+                  return (
+                    <Draggable key={`cat-${groupKey}`} draggableId={`cat-${groupKey}`} index={groupIndex}>
+                      {(catDragProvided, catDragSnapshot) => (
+                        <div
+                          ref={catDragProvided.innerRef}
+                          {...catDragProvided.draggableProps}
+                          style={{
+                            ...catDragProvided.draggableProps.style,
+                            background: catDragSnapshot.isDragging ? 'var(--bg-secondary)' : 'transparent',
+                            borderRadius: 'var(--radius-md)',
+                            border: catDragSnapshot.isDragging ? '1px dashed var(--accent)' : 'none',
+                            padding: catDragSnapshot.isDragging ? 'var(--sp-2)' : 0
                           }}
-                          </Draggable>
-                        );
-                      })}
-                      {provided.placeholder}
-                    </div>
-                  )}
-                </Droppable>
+                        >
+                          {/* Category Header */}
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            marginBottom: isCategoryCollapsed ? 0 : 'var(--sp-3)',
+                            padding: 'var(--sp-2) 0',
+                            userSelect: 'none'
+                          }}>
+                            <div 
+                              onClick={() => toggleCategoryCollapse(groupKey)}
+                              style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: 'var(--sp-2)', 
+                                cursor: 'pointer',
+                                flex: 1 
+                              }}
+                            >
+                              <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)' }}></div>
+                              <h3 style={{ 
+                                fontSize: 'var(--fs-sm)', 
+                                fontWeight: 700, 
+                                textTransform: 'uppercase', 
+                                letterSpacing: '0.05em', 
+                                color: 'var(--text-secondary)',
+                                margin: 0,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 'var(--sp-2)'
+                              }}>
+                                {groupKey}
+                              </h3>
+                              <span style={{ fontSize: 'var(--fs-xs)', background: 'var(--bg-tertiary)', padding: '2px 8px', borderRadius: '10px', color: 'var(--text-tertiary)' }}>
+                                {groupItems.length}
+                              </span>
+                              <div style={{ color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center' }}>
+                                {isCategoryCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                              </div>
+                            </div>
+
+                            {/* Category Actions: Move Up / Down & Drag Handle */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }} onClick={e => e.stopPropagation()}>
+                              <button 
+                                className="btn-icon btn-ghost" 
+                                onClick={(e) => moveCategory(groupKey, 'up', e)}
+                                disabled={groupIndex === 0}
+                                title="Mover categoria para cima"
+                                style={{ 
+                                  color: 'var(--text-tertiary)', 
+                                  padding: '4px',
+                                  opacity: groupIndex === 0 ? 0.25 : 0.7,
+                                  cursor: groupIndex === 0 ? 'default' : 'pointer'
+                                }}
+                              >
+                                <ArrowUp size={13} />
+                              </button>
+                              <button 
+                                className="btn-icon btn-ghost" 
+                                onClick={(e) => moveCategory(groupKey, 'down', e)}
+                                disabled={groupIndex === groupedLearnings.sortedKeys.length - 1}
+                                title="Mover categoria para baixo"
+                                style={{ 
+                                  color: 'var(--text-tertiary)', 
+                                  padding: '4px',
+                                  opacity: groupIndex === groupedLearnings.sortedKeys.length - 1 ? 0.25 : 0.7,
+                                  cursor: groupIndex === groupedLearnings.sortedKeys.length - 1 ? 'default' : 'pointer'
+                                }}
+                              >
+                                <ArrowDown size={13} />
+                              </button>
+                              <div 
+                                {...catDragProvided.dragHandleProps}
+                                style={{ 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  cursor: 'grab', 
+                                  color: 'var(--text-tertiary)',
+                                  padding: '4px 6px',
+                                  borderRadius: 'var(--radius-sm)'
+                                }}
+                                title="Arrastar categoria para reordenar"
+                              >
+                                <GripVertical size={16} />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Items Droppable */}
+                          {!isCategoryCollapsed && (
+                            <Droppable droppableId={groupKey} type="LEARNING">
+                              {(provided) => (
+                                <div 
+                                  {...provided.droppableProps} 
+                                  ref={provided.innerRef}
+                                  style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', minHeight: 10 }}
+                                >
+                                  {groupItems.map((item, index) => {
+                                    const isExpanded = expandedIds[item.id];
+                                    
+                                    return (
+                                      <Draggable key={item.id} draggableId={item.id} index={index}>
+                                        {(provided, snapshot) => {
+                                          const draggableStyle = {
+                                            ...provided.draggableProps.style,
+                                            padding: 'var(--sp-3)',
+                                            cursor: 'pointer',
+                                            background: snapshot.isDragging ? 'var(--bg-hover)' : 'var(--bg-secondary)',
+                                            border: item.isFavorite ? '1px solid var(--warning-subtle)' : '1px solid var(--border)',
+                                            boxShadow: snapshot.isDragging ? 'var(--shadow-lg)' : 'none',
+                                            opacity: snapshot.isDragging ? 0.95 : 1,
+                                            zIndex: snapshot.isDragging ? 100 : 'auto',
+                                          };
+
+                                          if (draggableStyle.transform) {
+                                            draggableStyle.transform = draggableStyle.transform.replace(/translate\([^,]+,/, 'translate(0px,');
+                                          }
+
+                                          return (
+                                            <div
+                                              ref={provided.innerRef}
+                                              {...provided.draggableProps}
+                                              className="project-card"
+                                              onClick={() => toggleExpanded(item.id)}
+                                              style={draggableStyle}
+                                            >
+                                            <div style={{ display: 'flex', gap: 'var(--sp-3)' }}>
+                                              <div 
+                                                {...provided.dragHandleProps}
+                                                style={{ display: 'flex', alignItems: 'flex-start', paddingTop: 2, cursor: 'grab', color: 'var(--text-tertiary)' }}
+                                                title="Arrastar para reordenar"
+                                                onClick={e => e.stopPropagation()}
+                                              >
+                                                <GripVertical size={16} />
+                                              </div>
+                                              
+                                              <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ 
+                                                  fontSize: 'var(--fs-sm)', 
+                                                  color: 'var(--text-primary)', 
+                                                  lineHeight: 1.6,
+                                                  whiteSpace: 'pre-wrap',
+                                                  display: isExpanded ? 'block' : '-webkit-box',
+                                                  WebkitLineClamp: isExpanded ? 'unset' : 3,
+                                                  WebkitBoxOrient: 'vertical',
+                                                  overflow: 'hidden'
+                                                }}>
+                                                  {item.content}
+                                                </div>
+                                                
+                                                {isExpanded && (
+                                                  <div style={{ marginTop: 'var(--sp-4)', paddingTop: 'var(--sp-3)', borderTop: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', gap: 'var(--sp-4)', alignItems: 'center', fontSize: 'var(--fs-xs)', color: 'var(--text-tertiary)' }}>
+                                                    {item.source && (
+                                                      <div><strong>Fonte:</strong> {item.source}</div>
+                                                    )}
+                                                    {item.date && (
+                                                      <div><strong>Registrado em:</strong> {item.date.split('-').reverse().join('/')}</div>
+                                                    )}
+                                                    {item.tags && item.tags.length > 0 && (
+                                                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                                        {item.tags.map(t => (
+                                                          <span key={t} style={{ background: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: '4px' }}>#{t}</span>
+                                                        ))}
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                )}
+                                              </div>
+
+                                              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', alignItems: 'center' }} onClick={e => e.stopPropagation()}>
+                                                <button 
+                                                  className="btn-icon btn-ghost" 
+                                                  onClick={(e) => toggleFavorite(item.id, item.isFavorite, e)}
+                                                  style={{ color: item.isFavorite ? 'var(--warning)' : 'var(--text-tertiary)' }}
+                                                >
+                                                  <Star size={16} fill={item.isFavorite ? "currentColor" : "none"} />
+                                                </button>
+                                                {isExpanded && (
+                                                  <>
+                                                    <button className="btn-icon btn-ghost" onClick={(e) => handleEdit(item, e)}>
+                                                      <Edit2 size={14} />
+                                                    </button>
+                                                    <button className="btn-icon btn-ghost" onClick={(e) => handleDelete(item.id, e)} style={{ color: 'var(--danger)' }}>
+                                                      <Trash2 size={14} />
+                                                    </button>
+                                                  </>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      }}
+                                      </Draggable>
+                                    );
+                                  })}
+                                  {provided.placeholder}
+                                </div>
+                              )}
+                            </Droppable>
+                          )}
+                        </div>
+                      )}
+                    </Draggable>
+                  );
+                })}
+                {catProvided.placeholder}
               </div>
-            ))}
-          </div>
+            )}
+          </Droppable>
         </DragDropContext>
       )}
 

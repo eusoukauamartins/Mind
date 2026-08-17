@@ -30,7 +30,8 @@ if ('serviceWorker' in navigator && (import.meta.env.PROD || enableSwInDev)) {
           if (installingWorker) {
             installingWorker.onstatechange = () => {
               if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                console.log('[Lyria PWA] New update available! Please refresh to apply changes.');
+                console.log('[Lyria PWA] New update available! Dispatching update notification.');
+                window.dispatchEvent(new CustomEvent('lyria-sw-update-available'));
               }
             };
           }
@@ -40,5 +41,5 @@ if ('serviceWorker' in navigator && (import.meta.env.PROD || enableSwInDev)) {
   });
 }
 
-console.log('[Lyria App] Version 1.0.3 (Rewards Dashboard Pin & AI Mobile UX Fixes) loaded.');
+console.log('[Lyria App] Version 1.0.4 (Stabilization, Mobile Keyboard & Deterministic Reminders) loaded.');
 
