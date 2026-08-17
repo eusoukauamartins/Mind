@@ -5,7 +5,22 @@ import Modal from '../components/Modal';
 import EmptyState from '../components/EmptyState';
 import DateFilter from '../components/DateFilter';
 import { Plus, CheckSquare, Search, Trash2, Edit2, Check, Archive, RotateCcw, GripVertical, Repeat, Zap, CalendarClock, Clock, Bell, ChevronDown, ChevronRight } from 'lucide-react';
-import { formatDate, priorityValue, getToday, isTaskCompleted, getTaskPeriodKey, isFutureTask, isRoutineTask, convertZonedToUTCISO, DAY_NAMES_FULL } from '../utils/helpers';
+import {
+  formatDate,
+  priorityValue,
+  getToday,
+  isTaskCompleted,
+  getTaskPeriodKey,
+  isRoutineTask,
+  convertZonedToUTCISO,
+  getCalendarDayDiff,
+  getTaskExecutionDate,
+  isTaskLongTermScheduled,
+  isTaskInPendingWindow,
+  getRollingNextDays,
+  getUpcomingWeekdayDate,
+  DAY_NAMES_FULL
+} from '../utils/helpers';
 
 const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0]; // Seg → Dom
 const WEEKDAY_LABELS = { 0: 'Domingo', 1: 'Segunda-feira', 2: 'Terça-feira', 3: 'Quarta-feira', 4: 'Quinta-feira', 5: 'Sexta-feira', 6: 'Sábado' };
@@ -111,8 +126,8 @@ function TaskCard({ task, onToggle, onEdit, onDelete, onDragStart, onDragOver, o
   );
 }
 
-// Standard task column component (for Pendentes and Agendadas)
-function TaskColumn({ title, icon: Icon, tasks, modifier, onToggle, onEdit, onDelete, onDragStart, onDragOver, onDrop, draggableId, setDraggableId, draggedId, variant }) {
+// Standard task column component (for Tarefas Agendadas)
+function TaskColumn({ title, icon: Icon, tasks, modifier, emptyMessage, onToggle, onEdit, onDelete, onDragStart, onDragOver, onDrop, draggableId, setDraggableId, draggedId, variant }) {
   return (
     <div className={`task-column ${modifier || ''}`}>
       <div className="task-column-header">
@@ -122,7 +137,7 @@ function TaskColumn({ title, icon: Icon, tasks, modifier, onToggle, onEdit, onDe
       <div className="task-column-body">
         {tasks.length === 0 ? (
           <p style={{ color: 'var(--text-tertiary)', fontSize: 'var(--fs-xs)', textAlign: 'center', padding: 'var(--sp-6) 0' }}>
-            Nenhuma tarefa
+            {emptyMessage || 'Nenhuma tarefa'}
           </p>
         ) : (
           tasks.map(task => (
@@ -141,6 +156,239 @@ function TaskColumn({ title, icon: Icon, tasks, modifier, onToggle, onEdit, onDe
               variant={variant}
             />
           ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Pending Planner column — weekly planner with Overdue, Rolling 7-day groups, and No-Date groups
+function PendingPlannerColumn({
+  overdueTasks,
+  pendingByDate,
+  noDateTasks,
+  rollingDays,
+  totalCount,
+  onToggle,
+  onEdit,
+  onDelete,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  draggableId,
+  setDraggableId,
+  draggedId
+}) {
+  const [collapsedSections, setCollapsedSections] = useState(() => {
+    try {
+      const saved = localStorage.getItem('cp_tasks_pending_collapsed_groups');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {}
+
+    // Default collapsed state:
+    // ATRASADAS: expanded (false)
+    // HOJE (day 0): expanded (false)
+    // Future days (days 1..7): collapsed by default (true)
+    // SEM PRAZO: expanded (false)
+    const initial = {
+      atrasadas: false,
+      sem_prazo: false
+    };
+    rollingDays.forEach(d => {
+      if (!d.isToday) {
+        initial[d.dateStr] = true;
+      } else {
+        initial[d.dateStr] = false;
+      }
+    });
+    return initial;
+  });
+
+  const toggleSection = (key) => {
+    setCollapsedSections(prev => {
+      const updated = {
+        ...prev,
+        [key]: !prev[key]
+      };
+      try {
+        localStorage.setItem('cp_tasks_pending_collapsed_groups', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  };
+
+  const renderCards = (tasks, variant) => tasks.map(task => (
+    <TaskCard
+      key={task.id}
+      task={task}
+      onToggle={onToggle}
+      onEdit={onEdit}
+      onDelete={onDelete}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      draggableId={draggableId}
+      setDraggableId={setDraggableId}
+      draggedId={draggedId}
+      variant={variant}
+    />
+  ));
+
+  return (
+    <div className="task-column task-column--pending">
+      <div className="task-column-header">
+        <h3><Clock size={15} /> Pendentes</h3>
+        <span className="task-column-count">{totalCount}</span>
+      </div>
+      <div className="task-column-body">
+        {totalCount === 0 ? (
+          <p style={{ color: 'var(--text-tertiary)', fontSize: 'var(--fs-xs)', textAlign: 'center', padding: 'var(--sp-6) 0' }}>
+            Nenhuma tarefa pendente
+          </p>
+        ) : (
+          <>
+            {/* 1. Group: ATRASADAS */}
+            {overdueTasks.length > 0 && (
+              <div style={{ marginBottom: 'var(--sp-2)' }}>
+                <div
+                  onClick={() => toggleSection('atrasadas')}
+                  style={{
+                    fontSize: 'var(--fs-xs)',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    color: 'var(--danger)',
+                    marginBottom: 'var(--sp-1)',
+                    marginTop: 'var(--sp-1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    padding: '4px 6px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--danger-subtle)'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.1)'}
+                  onMouseLeave={e => e.currentTarget.style.filter = 'none'}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {collapsedSections['atrasadas'] ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                    <span>Atrasadas</span>
+                  </div>
+                  <span style={{ fontSize: '10px', background: 'var(--danger)', color: '#ffffff', padding: '1px 6px', borderRadius: 'var(--radius-full)', fontWeight: 700 }}>
+                    {overdueTasks.length}
+                  </span>
+                </div>
+                {!collapsedSections['atrasadas'] && renderCards(overdueTasks, "pending-overdue")}
+              </div>
+            )}
+
+            {/* 2. Groups: Rolling 7 Days */}
+            {rollingDays.map(day => {
+              const dayTasks = pendingByDate[day.dateStr] || [];
+              const isCollapsed = Boolean(collapsedSections[day.dateStr]);
+              const isToday = day.isToday;
+
+              return (
+                <div key={day.dateStr} style={{ marginBottom: 'var(--sp-2)' }}>
+                  {(overdueTasks.length > 0 || day.offset > 0) && (
+                    <div style={{ height: 1, background: 'var(--border-soft)', margin: 'var(--sp-2) 0', opacity: 0.6 }} />
+                  )}
+                  <div
+                    onClick={() => toggleSection(day.dateStr)}
+                    style={{
+                      fontSize: 'var(--fs-xs)',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      color: isToday ? 'var(--accent)' : 'var(--text-secondary)',
+                      marginBottom: 'var(--sp-1)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      cursor: 'pointer',
+                      userSelect: 'none',
+                      padding: '3px 6px',
+                      borderRadius: 'var(--radius-sm)'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                      <span>{WEEKDAY_LABELS[day.weekday]}</span>
+                      <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-tertiary)', textTransform: 'none' }}>
+                        {formatDate(day.dateStr)}
+                      </span>
+                      {isToday && (
+                        <span style={{ fontSize: '9px', background: 'var(--accent)', color: '#ffffff', padding: '1px 6px', borderRadius: 'var(--radius-full)', fontWeight: 700 }}>
+                          HOJE
+                        </span>
+                      )}
+                    </div>
+                    <span style={{
+                      fontSize: '10px',
+                      background: dayTasks.length > 0 ? (isToday ? 'var(--accent-subtle)' : 'var(--bg-tertiary)') : 'transparent',
+                      color: dayTasks.length > 0 ? (isToday ? 'var(--accent)' : 'var(--text-primary)') : 'var(--text-tertiary)',
+                      padding: '1px 6px',
+                      borderRadius: 'var(--radius-full)',
+                      fontWeight: dayTasks.length > 0 ? 600 : 400
+                    }}>
+                      {dayTasks.length}
+                    </span>
+                  </div>
+                  {!isCollapsed && (
+                    dayTasks.length === 0 ? (
+                      <p style={{ color: 'var(--text-tertiary)', fontSize: '11px', padding: '4px 8px', fontStyle: 'italic' }}>
+                        Nenhuma tarefa planejada
+                      </p>
+                    ) : (
+                      renderCards(dayTasks, isToday ? "pending-today" : "pending-day")
+                    )
+                  )}
+                </div>
+              );
+            })}
+
+            {/* 3. Group: SEM PRAZO */}
+            {noDateTasks.length > 0 && (
+              <div style={{ marginBottom: 'var(--sp-2)' }}>
+                <div style={{ height: 1, background: 'var(--border-soft)', margin: 'var(--sp-2) 0', opacity: 0.6 }} />
+                <div
+                  onClick={() => toggleSection('sem_prazo')}
+                  style={{
+                    fontSize: 'var(--fs-xs)',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    color: 'var(--text-tertiary)',
+                    marginBottom: 'var(--sp-1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    padding: '3px 6px',
+                    borderRadius: 'var(--radius-sm)'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {collapsedSections['sem_prazo'] ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                    <span>Sem Prazo</span>
+                  </div>
+                  <span style={{ fontSize: '10px', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', padding: '1px 6px', borderRadius: 'var(--radius-full)' }}>
+                    {noDateTasks.length}
+                  </span>
+                </div>
+                {!collapsedSections['sem_prazo'] && renderCards(noDateTasks, "pending-nodate")}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -320,17 +568,59 @@ export default function Tasks() {
     return result;
   }, [tasks, search, filterPriority, filterStatus, sortBy]);
 
+  const todayStr = getToday();
+  const todayWeekday = new Date().getDay();
+  const tomorrowStr = useMemo(() => {
+    const [y, m, d] = todayStr.split('-').map(Number);
+    const next = new Date(Date.UTC(y, m - 1, d + 1));
+    return next.toISOString().substring(0, 10);
+  }, [todayStr]);
+  const rollingDays = useMemo(() => getRollingNextDays(7, todayStr), [todayStr]);
+
   // Split active tasks into Routine vs Ordinary (Scheduled / Pending)
   const routineTasks = useMemo(() => activeTasks.filter(t => isRoutineTask(t)), [activeTasks]);
   const dailyTasks = useMemo(() => routineTasks.filter(t => t.recurrence === 'diária' || (!t.recurrence && !t.recurrenceDay)), [routineTasks]);
   const weeklyTasks = useMemo(() => routineTasks.filter(t => t.recurrence === 'semanal'), [routineTasks]);
 
   const ordinaryTasks = useMemo(() => activeTasks.filter(t => !routineTasks.includes(t)), [activeTasks, routineTasks]);
-  const scheduledTasks = useMemo(() => ordinaryTasks.filter(t => isFutureTask(t)), [ordinaryTasks]);
-  const pendingTasks = useMemo(() => ordinaryTasks.filter(t => !isFutureTask(t)), [ordinaryTasks]);
+  
+  // 1. Long term scheduled: ordinary tasks with relevant date >= 8 days ahead
+  const scheduledTasks = useMemo(() => ordinaryTasks.filter(t => isTaskLongTermScheduled(t, todayStr)), [ordinaryTasks, todayStr]);
+
+  // 2. Pending weekly planner tasks: overdue, rolling 0..7 days, or no date
+  const pendingTasks = useMemo(() => ordinaryTasks.filter(t => isTaskInPendingWindow(t, todayStr)), [ordinaryTasks, todayStr]);
+
+  // Sub-groups for pending weekly planner
+  const overdueTasks = useMemo(() => {
+    return pendingTasks.filter(t => {
+      const target = getTaskExecutionDate(t);
+      if (!target) return false;
+      const diff = getCalendarDayDiff(target, todayStr);
+      return diff !== null && diff < 0;
+    });
+  }, [pendingTasks, todayStr]);
+
+  const pendingByDate = useMemo(() => {
+    const map = {};
+    rollingDays.forEach(d => { map[d.dateStr] = []; });
+
+    pendingTasks.forEach(t => {
+      const target = getTaskExecutionDate(t);
+      if (!target) return;
+      const diff = getCalendarDayDiff(target, todayStr);
+      if (diff !== null && diff >= 0 && diff <= 7) {
+        if (!map[target]) map[target] = [];
+        map[target].push(t);
+      }
+    });
+    return map;
+  }, [pendingTasks, rollingDays, todayStr]);
+
+  const noDateTasks = useMemo(() => {
+    return pendingTasks.filter(t => !getTaskExecutionDate(t));
+  }, [pendingTasks]);
 
   // Group weekly tasks by weekday
-  const todayWeekday = new Date().getDay();
   const weeklyByDay = useMemo(() => {
     const groups = {};
     weeklyTasks.forEach(t => {
@@ -579,10 +869,12 @@ export default function Tasks() {
               setDraggableId={setDraggableTask}
               draggedId={draggedId}
             />
-            <TaskColumn
-              title="Pendentes"
-              icon={Clock}
-              tasks={pendingTasks}
+            <PendingPlannerColumn
+              overdueTasks={overdueTasks}
+              pendingByDate={pendingByDate}
+              noDateTasks={noDateTasks}
+              rollingDays={rollingDays}
+              totalCount={pendingTasks.length}
               onToggle={handleToggleComplete}
               onEdit={handleEdit}
               onDelete={handleSoftDelete}
@@ -590,13 +882,13 @@ export default function Tasks() {
               draggableId={draggableTask}
               setDraggableId={setDraggableTask}
               draggedId={draggedId}
-              variant="pending"
             />
             <TaskColumn
               title="Tarefas Agendadas"
               icon={CalendarClock}
               tasks={scheduledTasks}
               modifier="task-column--scheduled"
+              emptyMessage="Nenhuma tarefa agendada (> 7 dias)"
               onToggle={handleToggleComplete}
               onEdit={handleEdit}
               onDelete={handleSoftDelete}
@@ -739,9 +1031,117 @@ export default function Tasks() {
               </datalist>
             </div>
           </div>
+          {/* Quick Date Selector for Ordinary Tasks */}
+          {form.taskType !== 'routine' && (
+            <div className="form-group" style={{ background: 'var(--bg-tertiary)', padding: 'var(--sp-3)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-soft)', marginBottom: 'var(--sp-4)' }}>
+              <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Quando pretende fazer? (Data Agendada)</span>
+                {form.scheduledDate ? (
+                  <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--accent)', fontWeight: 600 }}>
+                    {formatDate(form.scheduledDate)}
+                  </span>
+                ) : (
+                  <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-tertiary)' }}>
+                    Sem agendamento
+                  </span>
+                )}
+              </label>
+
+              {/* Quick shortcuts: Sem agendamento, Hoje, Amanhã */}
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                <button
+                  type="button"
+                  className={`btn ${!form.scheduledDate ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+                  style={{ padding: '4px 10px', fontSize: '11px', borderRadius: 'var(--radius-sm)' }}
+                  onClick={() => setForm(prev => ({ ...prev, scheduledDate: '' }))}
+                >
+                  Sem agendamento
+                </button>
+                <button
+                  type="button"
+                  className={`btn ${form.scheduledDate === todayStr ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+                  style={{ padding: '4px 10px', fontSize: '11px', borderRadius: 'var(--radius-sm)' }}
+                  onClick={() => setForm(prev => ({ ...prev, scheduledDate: todayStr }))}
+                >
+                  Hoje
+                </button>
+                <button
+                  type="button"
+                  className={`btn ${form.scheduledDate === tomorrowStr ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+                  style={{ padding: '4px 10px', fontSize: '11px', borderRadius: 'var(--radius-sm)' }}
+                  onClick={() => setForm(prev => ({ ...prev, scheduledDate: tomorrowStr }))}
+                >
+                  Amanhã
+                </button>
+              </div>
+
+              {/* Weekday shortcut buttons */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '8px' }}>
+                {[
+                  { label: 'Seg', day: 1 },
+                  { label: 'Ter', day: 2 },
+                  { label: 'Qua', day: 3 },
+                  { label: 'Qui', day: 4 },
+                  { label: 'Sex', day: 5 },
+                  { label: 'Sáb', day: 6 },
+                  { label: 'Dom', day: 0 }
+                ].map(w => {
+                  const targetDate = getUpcomingWeekdayDate(w.day, todayStr);
+                  const isSelected = form.scheduledDate === targetDate;
+                  const isTodayWeekday = w.day === todayWeekday;
+                  return (
+                    <button
+                      key={w.day}
+                      type="button"
+                      className={`btn ${isSelected ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+                      style={{
+                        padding: '4px 2px',
+                        fontSize: '11px',
+                        fontWeight: isTodayWeekday ? 700 : 500,
+                        justifyContent: 'center',
+                        borderRadius: 'var(--radius-sm)',
+                        border: isTodayWeekday && !isSelected ? '1px solid var(--accent)' : undefined
+                      }}
+                      title={`${w.label} (${formatDate(targetDate)})`}
+                      onClick={() => setForm(prev => ({ ...prev, scheduledDate: targetDate }))}
+                    >
+                      {w.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Specific Date input */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                  Data específica:
+                </span>
+                <input
+                  className="form-input"
+                  type="date"
+                  value={form.scheduledDate || ''}
+                  onChange={e => setForm(prev => ({ ...prev, scheduledDate: e.target.value }))}
+                  style={{ flex: 1, fontSize: 'var(--fs-xs)', padding: '5px 8px' }}
+                />
+                {form.scheduledDate && (
+                  <button
+                    type="button"
+                    className="btn-icon btn-ghost"
+                    onClick={() => setForm(prev => ({ ...prev, scheduledDate: '' }))}
+                    title="Limpar data agendada"
+                    style={{ padding: '6px', color: 'var(--text-tertiary)' }}
+                  >
+                    <RotateCcw size={13} />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Due Date (Deadline) & Reminder */}
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">Data Limite</label>
+              <label className="form-label">Data Limite (Prazo Final)</label>
               <input className="form-input" type="date" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} />
             </div>
             <div className="form-group">
@@ -749,21 +1149,15 @@ export default function Tasks() {
               <input className="form-input" type="time" value={form.dueTime || ''} onChange={e => setForm({ ...form, dueTime: e.target.value })} />
             </div>
           </div>
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Data Agendada</label>
-              <input className="form-input" type="date" value={form.scheduledDate} onChange={e => setForm({ ...form, scheduledDate: e.target.value })} />
-            </div>
-            <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', marginTop: '28px' }}>
-              <input
-                type="checkbox"
-                id="task-reminder-checkbox"
-                checked={form.reminderEnabled || false}
-                onChange={e => setForm({ ...form, reminderEnabled: e.target.checked })}
-                style={{ width: '16px', height: '16px', margin: 0, cursor: 'pointer' }}
-              />
-              <label htmlFor="task-reminder-checkbox" style={{ margin: 0, cursor: 'pointer', fontSize: 'var(--fs-sm)', fontWeight: 500 }}>Ativar Lembrete</label>
-            </div>
+          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', marginBottom: 'var(--sp-4)' }}>
+            <input
+              type="checkbox"
+              id="task-reminder-checkbox"
+              checked={form.reminderEnabled || false}
+              onChange={e => setForm({ ...form, reminderEnabled: e.target.checked })}
+              style={{ width: '16px', height: '16px', margin: 0, cursor: 'pointer' }}
+            />
+            <label htmlFor="task-reminder-checkbox" style={{ margin: 0, cursor: 'pointer', fontSize: 'var(--fs-sm)', fontWeight: 500 }}>Ativar Lembrete</label>
           </div>
           <div className="form-actions">
             <button className="btn btn-secondary" onClick={() => { setShowModal(false); setEditing(null); }}>Cancelar</button>

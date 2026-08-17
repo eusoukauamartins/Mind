@@ -284,3 +284,74 @@ export function isFutureTask(task) {
   }
   return false;
 }
+
+// Calendar-safe day difference between two 'YYYY-MM-DD' strings
+export function getCalendarDayDiff(dateStr, baseDateStr = getToday()) {
+  if (!dateStr || !baseDateStr) return null;
+  const [y1, m1, d1] = dateStr.split('-').map(Number);
+  const [y2, m2, d2] = baseDateStr.split('-').map(Number);
+  if (isNaN(y1) || isNaN(m1) || isNaN(d1) || isNaN(y2) || isNaN(m2) || isNaN(d2)) return null;
+  const utc1 = Date.UTC(y1, m1 - 1, d1);
+  const utc2 = Date.UTC(y2, m2 - 1, d2);
+  return Math.round((utc1 - utc2) / (1000 * 60 * 60 * 24));
+}
+
+// Primary execution date with dueDate fallback
+export function getTaskExecutionDate(task) {
+  if (!task) return '';
+  return task.scheduledDate || task.dueDate || '';
+}
+
+// True if task is an ordinary task scheduled 8 or more calendar days into the future
+export function isTaskLongTermScheduled(task, baseDateStr = getToday()) {
+  if (!task || isRoutineTask(task)) return false;
+  const targetDate = getTaskExecutionDate(task);
+  if (!targetDate) return false;
+  const diff = getCalendarDayDiff(targetDate, baseDateStr);
+  return diff !== null && diff >= 8;
+}
+
+// True if task is an ordinary task in the pending weekly planner (overdue, 0-7 days, or no date)
+export function isTaskInPendingWindow(task, baseDateStr = getToday()) {
+  if (!task || isRoutineTask(task)) return false;
+  return !isTaskLongTermScheduled(task, baseDateStr);
+}
+
+// Generates rolling N calendar days starting from baseDateStr
+export function getRollingNextDays(count = 7, baseDateStr = getToday()) {
+  const [year, month, day] = baseDateStr.split('-').map(Number);
+  const days = [];
+  for (let i = 0; i <= count; i++) {
+    const d = new Date(Date.UTC(year, month - 1, day + i));
+    const dateStr = d.toISOString().substring(0, 10);
+    const weekday = d.getUTCDay(); // 0: Dom, 1: Seg, ..., 6: Sab
+    days.push({
+      dateStr,
+      weekday,
+      offset: i,
+      isToday: i === 0,
+      isTomorrow: i === 1
+    });
+  }
+  return days;
+}
+
+// Returns the upcoming YYYY-MM-DD date for a given target weekday (0=Dom, 1=Seg, ... 6=Sab)
+export function getUpcomingWeekdayDate(targetWeekday, baseDateStr = getToday()) {
+  const [year, month, day] = baseDateStr.split('-').map(Number);
+  const baseUtc = new Date(Date.UTC(year, month - 1, day));
+  const currWeekday = baseUtc.getUTCDay();
+  
+  let daysToAdd = 0;
+  if (targetWeekday === currWeekday) {
+    daysToAdd = 0;
+  } else if (targetWeekday > currWeekday) {
+    daysToAdd = targetWeekday - currWeekday;
+  } else {
+    daysToAdd = 7 - (currWeekday - targetWeekday);
+  }
+  
+  const targetDate = new Date(Date.UTC(year, month - 1, day + daysToAdd));
+  return targetDate.toISOString().substring(0, 10);
+}
+
