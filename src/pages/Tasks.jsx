@@ -291,6 +291,7 @@ function PendingPlannerColumn({
               const dayTasks = pendingByDate[day.dateStr] || [];
               const isCollapsed = Boolean(collapsedSections[day.dateStr]);
               const isToday = day.isToday;
+              const hasTasks = dayTasks.length > 0;
 
               return (
                 <div key={day.dateStr} style={{ marginBottom: 'var(--sp-2)' }}>
@@ -304,23 +305,32 @@ function PendingPlannerColumn({
                       fontWeight: 700,
                       textTransform: 'uppercase',
                       letterSpacing: '0.05em',
-                      color: isToday ? 'var(--accent)' : 'var(--text-secondary)',
+                      color: isToday ? 'var(--accent)' : hasTasks ? 'var(--warning)' : 'var(--text-tertiary)',
                       marginBottom: 'var(--sp-1)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       cursor: 'pointer',
                       userSelect: 'none',
-                      padding: '3px 6px',
-                      borderRadius: 'var(--radius-sm)'
+                      padding: '4px 8px',
+                      borderRadius: 'var(--radius-sm)',
+                      background: isToday ? 'transparent' : hasTasks ? 'rgba(246, 196, 83, 0.05)' : 'transparent',
+                      border: isToday ? '1px solid transparent' : hasTasks ? '1px solid rgba(246, 196, 83, 0.2)' : '1px solid transparent',
+                      opacity: !isToday && !hasTasks ? 0.65 : 1,
+                      transition: 'all var(--transition-fast)'
                     }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    onMouseEnter={e => e.currentTarget.style.background = hasTasks && !isToday ? 'rgba(246, 196, 83, 0.1)' : 'var(--bg-hover)'}
+                    onMouseLeave={e => e.currentTarget.style.background = isToday ? 'transparent' : hasTasks ? 'rgba(246, 196, 83, 0.05)' : 'transparent'}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
                       <span>{WEEKDAY_LABELS[day.weekday]}</span>
-                      <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-tertiary)', textTransform: 'none' }}>
+                      <span style={{
+                        fontSize: '11px',
+                        fontWeight: 500,
+                        color: isToday ? 'var(--accent)' : hasTasks ? 'rgba(246, 196, 83, 0.85)' : 'var(--text-tertiary)',
+                        textTransform: 'none'
+                      }}>
                         {formatDate(day.dateStr)}
                       </span>
                       {isToday && (
@@ -331,11 +341,12 @@ function PendingPlannerColumn({
                     </div>
                     <span style={{
                       fontSize: '10px',
-                      background: dayTasks.length > 0 ? (isToday ? 'var(--accent-subtle)' : 'var(--bg-tertiary)') : 'transparent',
-                      color: dayTasks.length > 0 ? (isToday ? 'var(--accent)' : 'var(--text-primary)') : 'var(--text-tertiary)',
+                      background: isToday ? 'var(--accent-subtle)' : hasTasks ? 'var(--warning-subtle)' : 'transparent',
+                      color: isToday ? 'var(--accent)' : hasTasks ? 'var(--warning)' : 'var(--text-subtle)',
+                      border: hasTasks && !isToday ? '1px solid rgba(246, 196, 83, 0.3)' : '1px solid transparent',
                       padding: '1px 6px',
                       borderRadius: 'var(--radius-full)',
-                      fontWeight: dayTasks.length > 0 ? 600 : 400
+                      fontWeight: hasTasks || isToday ? 700 : 400
                     }}>
                       {dayTasks.length}
                     </span>
@@ -364,24 +375,35 @@ function PendingPlannerColumn({
                     fontWeight: 700,
                     textTransform: 'uppercase',
                     letterSpacing: '0.05em',
-                    color: 'var(--text-tertiary)',
+                    color: 'var(--warning)',
                     marginBottom: 'var(--sp-1)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     cursor: 'pointer',
                     userSelect: 'none',
-                    padding: '3px 6px',
-                    borderRadius: 'var(--radius-sm)'
+                    padding: '4px 8px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'rgba(246, 196, 83, 0.05)',
+                    border: '1px solid rgba(246, 196, 83, 0.2)',
+                    transition: 'all var(--transition-fast)'
                   }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(246, 196, 83, 0.1)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(246, 196, 83, 0.05)'}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     {collapsedSections['sem_prazo'] ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
                     <span>Sem Prazo</span>
                   </div>
-                  <span style={{ fontSize: '10px', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', padding: '1px 6px', borderRadius: 'var(--radius-full)' }}>
+                  <span style={{
+                    fontSize: '10px',
+                    background: 'var(--warning-subtle)',
+                    color: 'var(--warning)',
+                    border: '1px solid rgba(246, 196, 83, 0.3)',
+                    padding: '1px 6px',
+                    borderRadius: 'var(--radius-full)',
+                    fontWeight: 700
+                  }}>
                     {noDateTasks.length}
                   </span>
                 </div>
@@ -481,6 +503,7 @@ function RoutineColumn({ dailyTasks, weeklyByDay, todayWeekday, onToggle, onEdit
               const isTodayDay = day === todayWeekday;
               const isCollapsed = Boolean(collapsedSections[day]);
               const dayTasks = weeklyByDay[day] || [];
+              const hasTasks = dayTasks.length > 0;
 
               return (
                 <div key={day} style={{ marginBottom: 'var(--sp-2)' }}>
@@ -490,14 +513,26 @@ function RoutineColumn({ dailyTasks, weeklyByDay, todayWeekday, onToggle, onEdit
                   <div 
                     onClick={() => toggleSection(day)}
                     style={{
-                      fontSize: 'var(--fs-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em',
-                      color: isTodayDay ? 'var(--accent)' : 'var(--text-tertiary)',
+                      fontSize: 'var(--fs-xs)',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      color: isTodayDay ? 'var(--accent)' : hasTasks ? 'var(--warning)' : 'var(--text-tertiary)',
                       marginBottom: 'var(--sp-1)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer',
-                      userSelect: 'none', padding: '3px 6px', borderRadius: 'var(--radius-sm)'
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      cursor: 'pointer',
+                      userSelect: 'none',
+                      padding: '4px 8px',
+                      borderRadius: 'var(--radius-sm)',
+                      background: isTodayDay ? 'transparent' : hasTasks ? 'rgba(246, 196, 83, 0.05)' : 'transparent',
+                      border: isTodayDay ? '1px solid transparent' : hasTasks ? '1px solid rgba(246, 196, 83, 0.2)' : '1px solid transparent',
+                      opacity: !isTodayDay && !hasTasks ? 0.65 : 1,
+                      transition: 'all var(--transition-fast)'
                     }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    onMouseEnter={e => e.currentTarget.style.background = hasTasks && !isTodayDay ? 'rgba(246, 196, 83, 0.1)' : 'var(--bg-hover)'}
+                    onMouseLeave={e => e.currentTarget.style.background = isTodayDay ? 'transparent' : hasTasks ? 'rgba(246, 196, 83, 0.05)' : 'transparent'}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
@@ -506,7 +541,15 @@ function RoutineColumn({ dailyTasks, weeklyByDay, todayWeekday, onToggle, onEdit
                         <span style={{ fontSize: '9px', background: 'var(--accent)', color: '#ffffff', padding: '1px 6px', borderRadius: 'var(--radius-full)', fontWeight: 700 }}>HOJE</span>
                       )}
                     </div>
-                    <span style={{ fontSize: '10px', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', padding: '1px 6px', borderRadius: 'var(--radius-full)' }}>
+                    <span style={{
+                      fontSize: '10px',
+                      background: isTodayDay ? 'var(--accent-subtle)' : hasTasks ? 'var(--warning-subtle)' : 'transparent',
+                      color: isTodayDay ? 'var(--accent)' : hasTasks ? 'var(--warning)' : 'var(--text-subtle)',
+                      border: hasTasks && !isTodayDay ? '1px solid rgba(246, 196, 83, 0.3)' : '1px solid transparent',
+                      padding: '1px 6px',
+                      borderRadius: 'var(--radius-full)',
+                      fontWeight: hasTasks || isTodayDay ? 700 : 400
+                    }}>
                       {dayTasks.length}
                     </span>
                   </div>
