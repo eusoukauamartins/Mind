@@ -89,6 +89,14 @@ export function AuthProvider({ children }) {
 
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
           handleSession(newSession);
+        } else if (event === 'PASSWORD_RECOVERY') {
+          if (!isMounted) return;
+          setSession(newSession);
+          setUser(newSession?.user ?? null);
+          if (!initialized) {
+            initialized = true;
+            setLoading(false);
+          }
         } else if (event === 'SIGNED_OUT') {
           handleSession(null);
         }
@@ -160,7 +168,7 @@ export function AuthProvider({ children }) {
     if (!supabase) return { error: { message: 'Supabase não configurado.' } };
 
     const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/`,
+      redirectTo: 'https://www.lyria.work/reset-password',
     });
     return { data, error };
   }, []);

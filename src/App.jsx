@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, useLocation } from 'react-router-dom'
 import { useApp } from './contexts/AppContext'
 import { useAuth } from './contexts/AuthContext'
 import Layout from './components/Layout'
@@ -16,6 +16,7 @@ import Workout from './pages/Workout'
 import Export from './pages/Export'
 import Projects from './pages/Projects'
 import AuthPage from './pages/AuthPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
 import Recompensas from './pages/Recompensas'
 import AIAssistant from './pages/AIAssistant'
 import { logMigrationReport } from './lib/migrationDetector'
@@ -23,19 +24,25 @@ import { logMigrationReport } from './lib/migrationDetector'
 function App() {
   const { refreshAll } = useApp()
   const { isAuthenticated, loading, isSupabaseConfigured, user } = useAuth()
+  const location = useLocation()
 
   useEffect(() => {
-    if (!loading && isAuthenticated && user) {
+    if (!loading && isAuthenticated && user && !location.pathname.startsWith('/reset-password')) {
       refreshAll()
     }
-  }, [loading, isAuthenticated, user, refreshAll])
+  }, [loading, isAuthenticated, user, refreshAll, location.pathname])
 
   // Log migration report after successful auth (dev diagnostics)
   useEffect(() => {
-    if (isAuthenticated && isSupabaseConfigured) {
+    if (isAuthenticated && isSupabaseConfigured && !location.pathname.startsWith('/reset-password')) {
       logMigrationReport()
     }
-  }, [isAuthenticated, isSupabaseConfigured])
+  }, [isAuthenticated, isSupabaseConfigured, location.pathname])
+
+  // Handle /reset-password BEFORE normal auth guards so recovery users are never redirected away
+  if (location.pathname === '/reset-password' || location.pathname === '/reset-password/') {
+    return <ResetPasswordPage />
+  }
 
   // Show loading spinner while checking auth session
   if (loading) {
@@ -96,6 +103,7 @@ function App() {
         <Route path="/recompensas" element={<Recompensas />} />
         <Route path="/ia" element={<AIAssistant />} />
         <Route path="/configuracoes" element={<Export />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
       </Routes>
       <QuickAdd />
     </Layout>
