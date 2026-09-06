@@ -723,16 +723,20 @@ img {
 }
 
 /* ===== TASKS COLUMNS ===== */
+.tasks-page-container {
+  max-width: 1480px;
+}
+
 .tasks-columns {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--sp-5);
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-4);
   align-items: start;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1280px) {
   .tasks-columns {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 
@@ -804,6 +808,11 @@ img {
   color: var(--accent-hover);
 }
 
+/* Column: No Date (Sem Prazo) */
+.task-column--nodate .task-column-header h3 svg {
+  color: var(--warning);
+}
+
 /* Column: Scheduled — muted */
 .task-column--scheduled {
   opacity: 0.75;
@@ -854,12 +863,14 @@ img {
   border-color: var(--border);
 }
 
-.task-card--pending {
+.task-card--pending,
+.task-card--pending-nodate {
   background: var(--bg-secondary);
   border: 1px solid var(--border-soft);
 }
 
-.task-card--pending:hover {
+.task-card--pending:hover,
+.task-card--pending-nodate:hover {
   background: var(--bg-hover);
   border-color: var(--border);
 }

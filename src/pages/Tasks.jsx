@@ -4,7 +4,7 @@ import { useApp } from '../contexts/AppContext';
 import Modal from '../components/Modal';
 import EmptyState from '../components/EmptyState';
 import DateFilter from '../components/DateFilter';
-import { Plus, CheckSquare, Search, Trash2, Edit2, Check, Archive, RotateCcw, GripVertical, Repeat, Zap, CalendarClock, Clock, Bell, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, CheckSquare, Search, Trash2, Edit2, Check, Archive, RotateCcw, GripVertical, Repeat, Zap, CalendarClock, Clock, Bell, ChevronDown, ChevronRight, CalendarOff } from 'lucide-react';
 import {
   formatDate,
   priorityValue,
@@ -162,11 +162,10 @@ function TaskColumn({ title, icon: Icon, tasks, modifier, emptyMessage, onToggle
   );
 }
 
-// Pending Planner column — weekly planner with Overdue, Rolling 7-day groups, and No-Date groups
+// Pending Planner column — weekly planner with Overdue and Rolling 7-day groups
 function PendingPlannerColumn({
   overdueTasks,
   pendingByDate,
-  noDateTasks,
   rollingDays,
   totalCount,
   onToggle,
@@ -191,10 +190,8 @@ function PendingPlannerColumn({
     // ATRASADAS: expanded (false)
     // HOJE (day 0): expanded (false)
     // Future days (days 1..7): collapsed by default (true)
-    // SEM PRAZO: expanded (false)
     const initial = {
-      atrasadas: false,
-      sem_prazo: false
+      atrasadas: false
     };
     rollingDays.forEach(d => {
       if (!d.isToday) {
@@ -363,53 +360,6 @@ function PendingPlannerColumn({
                 </div>
               );
             })}
-
-            {/* 3. Group: SEM PRAZO */}
-            {noDateTasks.length > 0 && (
-              <div style={{ marginBottom: 'var(--sp-2)' }}>
-                <div style={{ height: 1, background: 'var(--border-soft)', margin: 'var(--sp-2) 0', opacity: 0.6 }} />
-                <div
-                  onClick={() => toggleSection('sem_prazo')}
-                  style={{
-                    fontSize: 'var(--fs-xs)',
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                    color: 'var(--warning)',
-                    marginBottom: 'var(--sp-1)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    cursor: 'pointer',
-                    userSelect: 'none',
-                    padding: '4px 8px',
-                    borderRadius: 'var(--radius-sm)',
-                    background: 'rgba(246, 196, 83, 0.05)',
-                    border: '1px solid rgba(246, 196, 83, 0.2)',
-                    transition: 'all var(--transition-fast)'
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(246, 196, 83, 0.1)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(246, 196, 83, 0.05)'}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    {collapsedSections['sem_prazo'] ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
-                    <span>Sem Prazo</span>
-                  </div>
-                  <span style={{
-                    fontSize: '10px',
-                    background: 'var(--warning-subtle)',
-                    color: 'var(--warning)',
-                    border: '1px solid rgba(246, 196, 83, 0.3)',
-                    padding: '1px 6px',
-                    borderRadius: 'var(--radius-full)',
-                    fontWeight: 700
-                  }}>
-                    {noDateTasks.length}
-                  </span>
-                </div>
-                {!collapsedSections['sem_prazo'] && renderCards(noDateTasks, "pending-nodate")}
-              </div>
-            )}
           </>
         )}
       </div>
@@ -663,6 +613,10 @@ export default function Tasks() {
     return pendingTasks.filter(t => !getTaskExecutionDate(t));
   }, [pendingTasks]);
 
+  const datedPendingTasks = useMemo(() => {
+    return pendingTasks.filter(t => Boolean(getTaskExecutionDate(t)));
+  }, [pendingTasks]);
+
   // Group weekly tasks by weekday
   const weeklyByDay = useMemo(() => {
     const groups = {};
@@ -812,7 +766,7 @@ export default function Tasks() {
   };
 
   return (
-    <div className="page-container">
+    <div className="page-container tasks-page-container">
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h1>Tarefas</h1>
@@ -900,16 +854,30 @@ export default function Tasks() {
             <PendingPlannerColumn
               overdueTasks={overdueTasks}
               pendingByDate={pendingByDate}
-              noDateTasks={noDateTasks}
               rollingDays={rollingDays}
-              totalCount={pendingTasks.length}
+              totalCount={datedPendingTasks.length}
               onToggle={handleToggleComplete}
               onEdit={handleEdit}
               onDelete={handleSoftDelete}
-              {...makeDragHandlers(pendingTasks)}
+              {...makeDragHandlers(datedPendingTasks)}
               draggableId={draggableTask}
               setDraggableId={setDraggableTask}
               draggedId={draggedId}
+            />
+            <TaskColumn
+              title="Sem Prazo"
+              icon={CalendarOff}
+              tasks={noDateTasks}
+              modifier="task-column--nodate"
+              emptyMessage="Nenhuma tarefa sem prazo"
+              onToggle={handleToggleComplete}
+              onEdit={handleEdit}
+              onDelete={handleSoftDelete}
+              {...makeDragHandlers(noDateTasks)}
+              draggableId={draggableTask}
+              setDraggableId={setDraggableTask}
+              draggedId={draggedId}
+              variant="pending-nodate"
             />
             <TaskColumn
               title="Tarefas Agendadas"
