@@ -9,6 +9,10 @@
   ],
   "rewrites": [
     {
+      "source": "/vivamais/",
+      "destination": "https://vivamais-experiencia.suportelojasvital.chatgpt.site/"
+    },
+    {
       "source": "/vivamais/:path*",
       "destination": "https://vivamais-experiencia.suportelojasvital.chatgpt.site/:path*"
     },
