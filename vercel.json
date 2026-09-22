@@ -1,6 +1,17 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "redirects": [
+    {
+      "source": "/vivamais",
+      "destination": "/vivamais/",
+      "permanent": false
+    }
+  ],
   "rewrites": [
+    {
+      "source": "/vivamais/:path*",
+      "destination": "https://vivamais-experiencia.suportelojasvital.chatgpt.site/:path*"
+    },
     {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
